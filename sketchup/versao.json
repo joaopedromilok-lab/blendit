@@ -1,5 +1,5 @@
 {
-  "versao": "0.3.5",
+  "versao": "0.3.6",
   "rbz": "https://raw.githubusercontent.com/joaopedromilok-lab/blendit/main/sketchup/release/blendit_sketchup.rbz",
-  "novidades": "- Preparação da cena bem mais rápida em projetos pesados (cortinas, almofadas, móveis curvos, muitos componentes repetidos) - o SketchUp fica menos tempo \"Não está respondendo\".\n- (0.3.4) Céus fotografados no menu Blendit > Céu, mapa de brilho nas texturas da biblioteca e cantos arredondados nos renders Alta e Final."
+  "novidades": "- Ambientes modelados sem forro/laje: o render coloca um forro invisível sozinho. A luz passa a entrar pelas janelas como num ambiente fechado, em vez de cair do céu aberto (fim do visual azulado e estourado). A imagem continua igual à vista do SketchUp.\n- (0.3.5) Preparação da cena bem mais rápida em projetos pesados."
 }

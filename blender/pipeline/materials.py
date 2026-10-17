@@ -88,6 +88,12 @@ def build_material(rec, engine="CYCLES", surface="auto", base_dir=None):
 
     transparency = float(rec.get("transparency", 0.0))
     roughness = max(0.03, min(1.0, float(rec.get("roughness", 0.5))))
+    fabric = curtain_kind(rec)
+    if fabric:
+        # Curtains are fabric, never glass - even when the source material is
+        # semi-transparent.
+        transparency = 0.0
+        roughness = max(roughness, 0.8)
     if transparency > 0.0:
         # THIN glass (architectural panes): see-through with a Fresnel
         # reflection, no refraction. Physical transmission made window panes
@@ -107,6 +113,9 @@ def build_material(rec, engine="CYCLES", surface="auto", base_dir=None):
             material_library.build_surface(nt, bsdf, surface, tint, roughness)
         elif not _build_revit_maps(nt, bsdf, rec, base_dir):
             material_library.decorate(nt, bsdf, rec.get("name", ""), tint, roughness)
+
+    if fabric:
+        _build_curtain(mat, nt, bsdf, out, fabric, float(rec.get("transparency", 0.0)))
 
     emissive = rec.get("emissive")
     if emissive:
@@ -235,6 +244,62 @@ def _scale_m(entry):
     sx = max(1e-4, float(scale[0]))
     sy = max(1e-4, float(scale[1] if len(scale) > 1 else scale[0]))
     return sx, sy
+
+
+_SHEER_WORDS = ("voil", "voal", "vual", "sheer", "tule", "organza", "gaze")
+_CURTAIN_WORDS = ("cortina", "curtain", "drape", "cortinado") + _SHEER_WORDS
+_NOT_CURTAIN = ("blackout", "black out", "persiana", "blind", "trilho", "varao",
+                "varão", "rod", "rail")
+
+
+def curtain_kind(rec):
+    """'sheer' (voil: light passes AND you half see through), 'fabric' (a
+    normal curtain: glows with the window light behind it) or None. From the
+    material name or the exporter's appearance_class (SketchUp marks the
+    materials used inside a component named 'Cortina ...')."""
+    name = str(rec.get("name") or "").lower()
+    cls = str(rec.get("appearance_class") or "").lower()
+    if any(w in name for w in _NOT_CURTAIN):
+        return None
+    if any(w in name for w in _SHEER_WORDS) or cls == "cortina_voil":
+        return "sheer"
+    if any(w in name for w in _CURTAIN_WORDS) or cls == "cortina":
+        return "fabric"
+    return None
+
+
+def _build_curtain(mat, nt, bsdf, out, kind, transparency):
+    """Fabric lit from behind: a share of Translucent BSDF (light coming
+    through the cloth, tinted by its colour), plus real see-through for voil."""
+    trl = nt.nodes.new("ShaderNodeBsdfTranslucent")
+    trl.location = (40, -300)
+    base_in = bsdf.inputs["Base Color"]
+    if base_in.is_linked:
+        nt.links.new(base_in.links[0].from_socket, trl.inputs["Color"])
+    else:
+        trl.inputs["Color"].default_value = base_in.default_value
+    mix = nt.nodes.new("ShaderNodeMixShader")
+    mix.location = (240, -120)
+    mix.inputs["Fac"].default_value = 0.5 if kind == "sheer" else 0.3
+    nt.links.new(bsdf.outputs["BSDF"], mix.inputs[1])
+    nt.links.new(trl.outputs["BSDF"], mix.inputs[2])
+    final = mix.outputs["Shader"]
+    see = max(0.35, min(0.7, transparency)) if kind == "sheer" else min(transparency, 0.15)
+    if see > 0.0:
+        tr = nt.nodes.new("ShaderNodeBsdfTransparent")
+        tr.location = (240, -320)
+        mix2 = nt.nodes.new("ShaderNodeMixShader")
+        mix2.location = (420, -120)
+        mix2.inputs["Fac"].default_value = see
+        nt.links.new(final, mix2.inputs[1])
+        nt.links.new(tr.outputs["BSDF"], mix2.inputs[2])
+        final = mix2.outputs["Shader"]
+        if hasattr(mat, "surface_render_method"):
+            mat.surface_render_method = "DITHERED"
+        if hasattr(mat, "use_transparent_shadow"):
+            mat.use_transparent_shadow = True
+    out.location = (620, 0)
+    nt.links.new(final, out.inputs["Surface"])
 
 
 def _build_thin_glass(nt, bsdf, out, rec, transparency):

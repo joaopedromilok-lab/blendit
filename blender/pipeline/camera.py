@@ -109,6 +109,9 @@ def drawing_direction(direction, north_offset_deg=0.0):
 _DRAWING_BBOX_EXCLUDE = ("BIR_Ground",)
 
 
+MAX_TWO_POINT_PITCH = 25.0   # degrees
+
+
 def setup_camera(spec, scale):
     cspec = spec.get("camera", {})
     name = cspec.get("name", "RevitView")
@@ -134,11 +137,16 @@ def setup_camera(spec, scale):
     if crop:
         _place_from_spec(cam_obj, cam_data, forward, up, scale, cspec)
     elif exact_persp:
+        pitch = 0.0
         if two_point:
             # Level the optical axis but KEEP the standpoint (dollying would
-            # change the composed shot more than the leveling fixes).
+            # change the composed shot more than the leveling fixes). Strongly
+            # tilted shots (looking well down at a table, up at a facade) are
+            # left alone: leveling those changes the picture too much.
             leveled = _level(forward)
-            if leveled is not None:
+            fz = max(-1.0, min(1.0, forward.normalized().z))
+            if leveled is not None and abs(math.degrees(math.asin(fz))) <= MAX_TWO_POINT_PITCH:
+                pitch = math.asin(fz)
                 forward, up = leveled, mathutils.Vector((0.0, 0.0, 1.0))
         pos = _vec(cspec.get("position", [0.0, 0.0, 0.0]), scale)
         _set_pose(cam_obj, pos, forward, up)
@@ -147,6 +155,13 @@ def setup_camera(spec, scale):
         cam_data.sensor_fit = "HORIZONTAL"
         cam_data.shift_x = float(cspec.get("shift_x", 0.0))
         cam_data.shift_y = float(cspec.get("shift_y", 0.0))
+        if pitch:
+            # Architectural "shift lens": slide the frame so what was in the
+            # middle of the tilted view stays in the middle - same composition,
+            # vertical lines straight.
+            half_w = math.tan(cam_data.angle_x / 2.0)
+            if half_w > 1e-6:
+                cam_data.shift_y += math.tan(pitch) / (2.0 * half_w)
     else:
         if two_point:
             leveled = _level(forward)

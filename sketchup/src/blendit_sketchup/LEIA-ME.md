@@ -33,6 +33,8 @@ está o `blender.exe`.
 | **Montar prancha com imagens de uma pasta** | Prancha em PDF (A4 a A1) com até 12 imagens de uma pasta. |
 | **Iluminação: Dia / Noite** | Noite apaga o sol e o céu - só as luminárias iluminam. |
 | **Céu** | Céu simulado (padrão) ou um céu fotografado em HDRI: limpo ao meio-dia, parcialmente nublado, nublado (luz suave, sem sombra marcada) ou fim de tarde. O céu aparece nas janelas e ilumina o ambiente; o sol continua vindo de Janela > Sombras. Cada céu é baixado uma vez (~6 MB, Poly Haven, CC0). Vale para os estilos Realista e Realista brilhante, de dia. |
+| **Ambiente interno** | Automático, Sim ou Não. Em ambientes sem forro/laje o render fecha a sala com um forro invisível, para a luz entrar pelas janelas. |
+| **Paredes retas** | Perspectiva de 2 pontos: linhas verticais retas, mantendo o enquadramento (ligado por padrão; vistas muito inclinadas ficam como estão). |
 | **Inverter lado do corte** | Se o corte sair do lado errado, marque esta opção. |
 | **Estilo / Qualidade** | Submenus para escolher o visual e o esforço do render (Rascunho, Boa, Alta, Final). |
 | **Configurações** | Estilo e qualidade padrão, pasta dos renders e caminho do Blender. |
@@ -62,6 +64,10 @@ Luminárias viram luzes de verdade, reconhecidas pelo nome do componente: spot,
 embutido, dicroica, pendente, lustre, plafon, painel LED, arandela, abajur, fita LED.
 Para ajustar uma luminária, use o atributo `blendit` do componente: `luz = nao`
 (não acender), `kelvin = 2700`, `candela = 1500`.
+
+Cortinas: grupos ou componentes com "cortina", "curtain", "voil", "voal" ou "tule" no
+nome viram tecido translúcido (voil/voal/tule também semitransparente). Varão e trilho
+continuam rígidos; "blackout" e "persiana" continuam opacos.
 
 O plano de corte ativo (inclusive dentro de grupos) vira um corte no render, com
 o corte das paredes e lajes preenchido em cinza escuro, como no SketchUp.

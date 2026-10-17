@@ -1,5 +1,5 @@
 {
-  "versao": "0.3.7",
+  "versao": "0.3.8",
   "rbz": "https://raw.githubusercontent.com/joaopedromilok-lab/blendit/main/sketchup/release/blendit_sketchup.rbz",
-  "novidades": "- Forro invisível automático mais esperto: funciona em ambientes integrados (sala + cozinha) e com pendentes ou vigas logo acima da câmera.\n- Novo menu Blendit > Ambiente interno: Automático, Sim (fecha o forro se faltar) ou Não (cena externa) - para quando a detecção automática errar.\n- (0.3.5) Preparação da cena bem mais rápida em projetos pesados."
+  "novidades": "- Paredes retas: os renders saem em perspectiva de 2 pontos (linhas verticais retas, como em foto de arquitetura), mantendo o enquadramento. Dá para desligar em Blendit > Paredes retas.\n- Cortinas: componentes com \"cortina\" no nome viram tecido de verdade - a luz da janela atravessa. Voil/voal/tule ficam semitransparentes; blackout e persiana continuam opacos.\n- (0.3.7) Forro invisível automático e menu Ambiente interno."
 }

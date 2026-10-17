@@ -191,7 +191,8 @@ module BlenditSU
     opts = { mode: extra[:mode] || mode, engine: qcfg[:engine], samples: qcfg[:samples],
              resolution: [width, 0], denoise: qcfg[:denoise],
              noite: extra.key?(:noite) ? extra[:noite] : night?,
-             flip_section: flip_section?, interior: pref('interior', 'auto') }
+             flip_section: flip_section?, interior: pref('interior', 'auto'),
+             dois_pontos: pref('dois_pontos', '1') == '1' }
     m = opts[:mode].to_s
     if !opts[:noite] && %w[realistic specular].include?(m) && Ceus.escolhido != 'simulado'
       opts[:ceu] = Ceus.opcoes
@@ -534,8 +535,8 @@ module BlenditSU
     cmd
   end
 
-  def self.toggle(key)
-    set_pref(key, pref(key, '0') == '1' ? '0' : '1')
+  def self.toggle(key, padrao = '0')
+    set_pref(key, pref(key, padrao) == '1' ? '0' : '1')
   end
 
   unless file_loaded?(__FILE__)
@@ -589,6 +590,8 @@ module BlenditSU
       id = ceu.add_item(c[:nome]) { set_pref('ceu', k) }
       ceu.set_validation_proc(id) { Ceus.escolhido == k ? MF_CHECKED : MF_UNCHECKED }
     end
+    id = menu.add_item('Paredes retas (perspectiva de 2 pontos)') { toggle('dois_pontos', '1') }
+    menu.set_validation_proc(id) { pref('dois_pontos', '1') == '1' ? MF_CHECKED : MF_UNCHECKED }
     id = menu.add_item('Inverter lado do corte') { toggle('flip_section') }
     menu.set_validation_proc(id) { flip_section? ? MF_CHECKED : MF_UNCHECKED }
     menu.add_separator

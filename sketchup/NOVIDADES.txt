@@ -1,3 +1,3 @@
-- Forro invisível automático mais esperto: funciona em ambientes integrados (sala + cozinha) e com pendentes ou vigas logo acima da câmera.
-- Novo menu Blendit > Ambiente interno: Automático, Sim (fecha o forro se faltar) ou Não (cena externa) - para quando a detecção automática errar.
-- (0.3.5) Preparação da cena bem mais rápida em projetos pesados.
+- Paredes retas: os renders saem em perspectiva de 2 pontos (linhas verticais retas, como em foto de arquitetura), mantendo o enquadramento. Dá para desligar em Blendit > Paredes retas.
+- Cortinas: componentes com "cortina" no nome viram tecido de verdade - a luz da janela atravessa. Voil/voal/tule ficam semitransparentes; blackout e persiana continuam opacos.
+- (0.3.7) Forro invisível automático e menu Ambiente interno.

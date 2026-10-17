@@ -104,9 +104,12 @@ module BlenditSU
           # Uma luminária detectada: as peças de dentro não viram outra luz.
           was = @in_light
           @in_light ||= light_kind(e, defn)
+          was_c = @in_curtain
+          @in_curtain ||= curtain_kind(e, defn)
           child_mat = e.material || inherited
           walk(defn.entities, child_tr, child_mat, child_key, depth + 1, clips)
           @in_light = was
+          @in_curtain = was_c
         end
       end
     end
@@ -273,7 +276,7 @@ module BlenditSU
     # ---------------------------------------------------------------- faces
     def add_face(face, tr, inherited, key, clips = [])
       mat = face.material || inherited || face.back_material
-      mid = material_id(mat)
+      mid = material_id(mat, @in_curtain && !mat_rigid?(mat) ? @in_curtain : nil)
 
       lpts, lnormal, lnormals, ltris = local_geom(face)
       return if lpts.empty?
@@ -483,14 +486,46 @@ module BlenditSU
     end
 
     # ---------------------------------------------------------------- materiais
-    def material_id(mat)
-      k = mat || :default
+    # cortina: nil, 'cortina' ou 'cortina_voil' - o mesmo material usado dentro
+    # de uma cortina vira um registro à parte, com tecido translúcido no render.
+    def material_id(mat, cortina = nil)
+      k = cortina ? [mat || :default, cortina] : (mat || :default)
       rec = @materials[k]
       return rec['id'] if rec
-      rec = mat ? material_record(mat, "m#{@mat_order.length + 1}") : default_record
+      id = "m#{@mat_order.length + 1}"
+      rec = if mat then material_record(mat, id)
+            elsif cortina then default_record.merge('id' => id)
+            else default_record
+            end
+      if cortina
+        rec['appearance_class'] = cortina
+        rec['name'] = "#{rec['name']} (cortina)"
+      end
       @materials[k] = rec
       @mat_order << rec
       rec['id']
+    end
+
+    # Componentes/grupos de cortina, pelo nome. Blackout e persiana ficam de fora.
+    CURTAIN_RE = /cortin|curtain|drape|voil|voal|vual|sheer|\btule\b|organza/i.freeze
+    SHEER_RE = /voil|voal|vual|sheer|\btule\b|organza|gaze/i.freeze
+    NOT_CURTAIN_RE = /blackout|black out|persiana|blind/i.freeze
+
+    def curtain_kind(inst, defn)
+      names = [inst.name.to_s, defn.name.to_s].join(' ')
+      return nil if names !~ CURTAIN_RE || names =~ NOT_CURTAIN_RE
+      names =~ SHEER_RE ? 'cortina_voil' : 'cortina'
+    end
+
+    # Peças rígidas dentro da cortina (varão, trilho, argolas) não viram tecido.
+    def mat_rigid?(mat)
+      return false unless mat
+      n = (mat.respond_to?(:display_name) ? mat.display_name : mat.name).to_s.downcase
+      return true if n =~ /metal|alumin|inox|a[cç]o\b|ferro|cromad|trilho|var[aã]o|madeira|wood|chrome|steel/
+      c = mat.color
+      (0.2126 * c.red + 0.7152 * c.green + 0.0722 * c.blue) < 30
+    rescue StandardError
+      false
     end
 
     def default_record
@@ -642,7 +677,7 @@ module BlenditSU
         camera['type'] = 'perspective'
         camera['fov_degrees'] = hfov
         camera['ortho_scale'] = nil
-        camera['two_point_perspective'] = cam.respond_to?(:is_2d?) && cam.is_2d? ? true : false
+        camera['two_point_perspective'] = @opts[:dois_pontos] || (cam.respond_to?(:is_2d?) && cam.is_2d?) ? true : false
       else
         camera['type'] = 'orthographic'
         camera['fov_degrees'] = 45.0

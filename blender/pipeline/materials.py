@@ -189,12 +189,29 @@ def _build_revit_maps(nt, bsdf, rec, base_dir):
         import math
         mp.inputs["Rotation"].default_value = (0.0, 0.0, math.radians(rot))
 
+    # SketchUp bundles carry the architect's own texture placement as mesh UVs
+    # (maps.diffuse.uv). Use them for the colour map and for every map drawn at
+    # the same scale (the library's relief / roughness images); anything else -
+    # and every bundle without UVs - keeps the real-world box projection.
+    uvnode = None
+    if diffuse.get("uv"):
+        uvnode = nt.nodes.new("ShaderNodeUVMap")
+        uvnode.location = (-700, 220)
+        uvnode.uv_map = UV_LAYER
+
+    def _wire(tex_node, entry):
+        if uvnode is not None and _same_scale(entry, diffuse):
+            tex_node.projection = "FLAT"
+            nt.links.new(uvnode.outputs["UV"], tex_node.inputs["Vector"])
+        else:
+            tex_node.projection = "BOX"
+            tex_node.projection_blend = 0.25
+            nt.links.new(mp.outputs["Vector"], tex_node.inputs["Vector"])
+
     img = nt.nodes.new("ShaderNodeTexImage")
     img.location = (-460, 60)
     img.image = bpy.data.images.load(dpath, check_existing=True)
-    img.projection = "BOX"
-    img.projection_blend = 0.25
-    nt.links.new(mp.outputs["Vector"], img.inputs["Vector"])
+    _wire(img, diffuse)
     nt.links.new(img.outputs["Color"], bsdf.inputs["Base Color"])
     if diffuse.get("alpha"):
         # Cut-out texture (PNG with transparency: plants, curtains, people from
@@ -216,9 +233,7 @@ def _build_revit_maps(nt, bsdf, rec, base_dir):
         rimg.location = (-460, -560)
         rimg.image = bpy.data.images.load(rpath, check_existing=True)
         rimg.image.colorspace_settings.name = "Non-Color"
-        rimg.projection = "BOX"
-        rimg.projection_blend = 0.25
-        nt.links.new(mp.outputs["Vector"], rimg.inputs["Vector"])
+        _wire(rimg, maps.get("roughness") or {})
         # Keep the finish the user picked (polished / satin / matte): the map
         # only adds variation around it, scaled so its average lands on the
         # material's roughness value.
@@ -239,9 +254,7 @@ def _build_revit_maps(nt, bsdf, rec, base_dir):
         bimg.location = (-460, -280)
         bimg.image = bpy.data.images.load(bpath, check_existing=True)
         bimg.image.colorspace_settings.name = "Non-Color"
-        bimg.projection = "BOX"
-        bimg.projection_blend = 0.25
-        nt.links.new(mp.outputs["Vector"], bimg.inputs["Vector"])
+        _wire(bimg, maps.get("bump") or {})
         bump = nt.nodes.new("ShaderNodeBump")
         bump.location = (-200, -280)
         amount = float((maps.get("bump") or {}).get("amount") or 0.3)
@@ -249,6 +262,15 @@ def _build_revit_maps(nt, bsdf, rec, base_dir):
         nt.links.new(bimg.outputs["Color"], bump.inputs["Height"])
         nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
     return True
+
+
+UV_LAYER = "UVMap"    # the glTF importer's name for TEXCOORD_0
+
+
+def _same_scale(entry, diffuse):
+    """A map drawn at the colour map's scale lines up with it under the same UVs."""
+    a, b = _scale_m(entry), _scale_m(diffuse)
+    return abs(a[0] - b[0]) < 1e-4 * max(1.0, b[0]) and abs(a[1] - b[1]) < 1e-4 * max(1.0, b[1])
 
 
 def _scale_m(entry):

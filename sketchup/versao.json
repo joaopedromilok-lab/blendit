@@ -1,5 +1,5 @@
 {
-  "versao": "0.4.2",
+  "versao": "0.4.3",
   "rbz": "https://raw.githubusercontent.com/joaopedromilok-lab/blendit/main/sketchup/release/blendit_sketchup.rbz",
-  "novidades": "- Texturas automáticas (menu Blendit > Texturas automáticas...): o Blendit acha os materiais que são só cor - piso, madeira da marcenaria, tecido do sofá, couro, pedra da bancada, concreto - e sugere uma textura real da biblioteca para cada um. Ela confere numa lista, troca o que quiser e aplica. As cores do projeto são mantidas e dá para desfazer com Ctrl+Z.\n- (0.4.1) Exposição e cor automáticas, imperfeições nas superfícies, brilho de lente e tecido de verdade em sofás."
+  "novidades": "- As texturas agora saem no render exatamente como estão posicionadas no SketchUp: rotação, deslocamento, imagem esticada para caber (quadros, tela de TV, arte), veio da madeira acompanhando o móvel girado e textura herdada do grupo. Antes a imagem era reaplicada pela escala e podia repetir ou sair cortada.\n- Pacotes antigos e materiais sem mapeamento válido continuam funcionando com a projeção de antes."
 }

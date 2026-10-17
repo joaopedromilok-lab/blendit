@@ -35,9 +35,11 @@ module BlenditSU
       @lights = []
       @in_light = nil
       @section_used = false
+      @uv_stats = {}         # material_id -> { real:, fallback: } faces
     end
 
     attr_reader :faces, :lights, :section_used
+    attr_reader :uv_stats   # material_id -> { real:, fallback: } (diagnóstico/testes)
 
     # Exporta para out_dir e devolve o caminho do scene_spec.json.
     def export(out_dir)
@@ -51,6 +53,7 @@ module BlenditSU
       raise 'Nada visível para exportar nesta vista.' if @buckets.empty?
 
       @geom_cache = @vnorm_cache = nil       # libera a memória antes de gravar
+      marcar_uvs
       spec = build_spec
       BundleWriter.new.write(@buckets.values, spec, out_dir)
     end
@@ -158,13 +161,14 @@ module BlenditSU
     end
 
     def lerp_vert(a, b, t)
-      pa, na = a
-      pb, nb = b
+      pa, na, ua = a
+      pb, nb, ub = b
       pos = (0..2).map { |k| pa[k] + (pb[k] - pa[k]) * t }
       nrm = (0..2).map { |k| na[k] + (nb[k] - na[k]) * t }
       l = Math.sqrt(nrm.sum { |x| x * x })
       nrm = nrm.map { |x| x / l } if l > 0
-      [pos, nrm]
+      uv = ua && ub ? [ua[0] + (ub[0] - ua[0]) * t, ua[1] + (ub[1] - ua[1]) * t] : nil
+      [pos, nrm, uv]
     end
 
     # ---------------------------------------------------------------- luzes
@@ -278,7 +282,7 @@ module BlenditSU
       mat = face.material || inherited || face.back_material
       mid = material_id(mat, @in_curtain && !mat_rigid?(mat) ? @in_curtain : nil)
 
-      lpts, lnormal, lnormals, ltris = local_geom(face)
+      lpts, lnormal, lnormals, ltris, uvf, uvb = local_geom(face)
       return if lpts.empty?
       xf = xform_of(tr)
       mirrored = xf[:mirrored]
@@ -292,26 +296,47 @@ module BlenditSU
                Array.new(flat.length, n)
              end
       tris = mirrored ? ltris.map { |t| [t[0], t[2], t[1]] } : ltris
+      uvs, origem = face_uvs(face, mat, inherited, lpts, uvf, uvb, flat)
+      if uvs
+        st = (@uv_stats[mid] ||= { real: 0, fallback: 0 })
+        st[origem] += 1
+      end
 
       unless clips.empty?
         vp = []
         vn = []
+        vt = uvs ? [] : nil
         out_tris = []
         tris.each do |t|
-          poly = t.map { |i| [flat[i], nrms[i]] }
+          poly = t.map { |i| [flat[i], nrms[i], uvs && uvs[i]] }
           clips.each { |c| poly = clip_poly(poly, c) if poly.length >= 3 }
           next if poly.length < 3
           base = vp.length
-          poly.each { |pos, nr| vp << pos; vn << nr }
+          poly.each { |pos, nr, uv| vp << pos; vn << nr; vt << uv if vt }
           (1...(poly.length - 1)).each { |k| out_tris << [base, base + k, base + k + 1] }
         end
         return if out_tris.empty?
-        flat, nrms, tris = vp, vn, out_tris
+        flat, nrms, tris, uvs = vp, vn, out_tris, vt
       end
 
-      bucket_for(key, mid).add_smooth(flat, nrms, tris)
+      bucket_for(key, mid).add_smooth(flat, nrms, tris, uvs)
       @faces += 1
       track_ground(face, flat, n)
+    end
+
+    # Materiais com textura em que alguma face trouxe UV real passam a usar o
+    # mapeamento do SketchUp no Blender ('uv' => true no mapa de cor). Sem
+    # nenhuma UV real, as UVs saem do pacote e o Blender usa a projeção antiga.
+    def marcar_uvs
+      com_uv = {}
+      @mat_order.each do |rec|
+        st = @uv_stats[rec['id']]
+        dif = rec['maps'] && rec['maps']['diffuse']
+        next unless dif && st && st[:real] > 0
+        dif['uv'] = true
+        com_uv[rec['id']] = true
+      end
+      @buckets.each_value { |b| b.drop_uvs! unless com_uv[b.material_id] }
     end
 
     def bucket_for(key, mid)
@@ -349,7 +374,7 @@ module BlenditSU
     def local_geom(face)
       @geom_cache ||= {}
       @geom_cache[ent_key(face)] ||= begin
-        mesh = face.mesh(0)
+        mesh = face.mesh(MESH_UVQ_FRONT | MESH_UVQ_BACK)
         mpts = mesh.points
         tris = []
         mesh.polygons.each do |poly|
@@ -366,7 +391,94 @@ module BlenditSU
             vx ? vec3(vertex_normal(vx, face)) : nil
           end
         end
-        [mpts.map { |p| [p.x.to_f, p.y.to_f, p.z.to_f] }, vec3(face.normal), lnormals, tris]
+        [mpts.map { |p| [p.x.to_f, p.y.to_f, p.z.to_f] }, vec3(face.normal), lnormals, tris,
+         mesh_uvs(mesh, mpts.length, true), mesh_uvs(mesh, mpts.length, false)]
+      end
+    end
+
+    # ---------------------------------------------------------------- UVs
+    # face.mesh com as flags de UVQ entrega uma coordenada de textura por
+    # vértice da malha (mesma ordem de mesh.points), já com a posição, rotação,
+    # escala e distorção que a arquiteta deu à textura no SketchUp. UVQ é
+    # homogêneo: u = U/Q, v = V/Q.
+    MESH_UVQ_FRONT = 1
+    MESH_UVQ_BACK = 2
+
+    def mesh_uvs(mesh, n, front)
+      return nil unless mesh.respond_to?(:uv_at)
+      (1..n).map do |i|
+        q = mesh.uv_at(i, front)
+        return nil if q.nil?
+        w = q.z.to_f
+        w = 1.0 if w.abs < 1e-12
+        u = q.x.to_f / w
+        v = q.y.to_f / w
+        return nil unless u.finite? && v.finite?
+        [u, v]
+      end
+    rescue StandardError
+      nil
+    end
+
+    # UVs da face no lado cujo material é usado, em unidades de textura
+    # (1 = a imagem inteira). nil = sem textura (não precisa de UV).
+    # -> [uvs, :real | :fallback]
+    def face_uvs(face, mat, inherited, lpts, uvf, uvb, flat)
+      tex = mat && mat.texture
+      return nil unless tex
+      tw = tex.width.to_f
+      th = tex.height.to_f
+      raw, own = if face.material then [uvf, true]          # frente pintada
+                 elsif inherited then [uvf, false]          # cor do grupo/componente
+                 else [uvb, true]                           # só o verso pintado
+                 end
+      uv = raw && normalize_uvs(raw, lpts, tw, th, own)
+      return [uv, :real] if uv
+      [box_uvs(flat, tw, th), :fallback]
+    end
+
+    # O SketchUp entrega as UVs de um material da própria face já em unidades
+    # de textura; numa face sem material (que herda a cor do grupo), em
+    # polegadas. A razão |dUV| / |dP| diz qual é o caso, sem depender disso:
+    # ~1 = polegadas (divide pelo tamanho da textura).
+    def normalize_uvs(raw, lpts, tw, th, own)
+      return nil if raw.length != lpts.length || raw.length < 3
+      r = uv_ratio(raw, lpts)
+      return nil if r.nil? || r <= 0
+      if (r - 1.0).abs < 0.2 && tw > 4.0 && th > 0.0
+        raw.map { |u, v| [u / tw, v / th] }          # polegadas -> unidades de textura
+      elsif own || (r * tw - 1.0).abs < 0.2
+        raw                                          # já em unidades de textura
+      end                                            # senão: nil -> plano B
+    end
+
+    def uv_ratio(raw, lpts)
+      rs = []
+      (0...raw.length).each do |i|
+        j = (i + 1) % raw.length
+        dp = Math.sqrt((0..2).sum { |k| (lpts[j][k] - lpts[i][k])**2 })
+        next if dp < 1e-6
+        du = Math.hypot(raw[j][0] - raw[i][0], raw[j][1] - raw[i][1])
+        rs << du / dp
+      end
+      return nil if rs.empty?
+      rs.sort[rs.length / 2]
+    end
+
+    # Plano B (sem UV válida): projeção pelo eixo dominante, em metros, na
+    # escala real da textura - o mesmo que o Blender faz hoje sem UV.
+    def box_uvs(flat, tw, th)
+      sx = [tw * INCH_TO_M, 1e-6].max
+      sy = [th * INCH_TO_M, 1e-6].max
+      e1 = flat[1] ? (0..2).map { |k| flat[1][k] - flat[0][k] } : [1, 0, 0]
+      e2 = flat[2] ? (0..2).map { |k| flat[2][k] - flat[0][k] } : [0, 1, 0]
+      n = cross3(e1, e2).map(&:abs)
+      flat.map do |p|
+        x, y, z = p.map { |c| c * INCH_TO_M }
+        if n[2] >= n[0] && n[2] >= n[1] then [x / sx, y / sx]
+        elsif n[0] >= n[1] then [y / sx, z / sy]
+        else [x / sx, z / sy]
+        end
       end
     end
 

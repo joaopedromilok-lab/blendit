@@ -15,7 +15,7 @@ module BlenditSU
 
   # Uma malha por nó do glTF (um nó = um "elemento" do contrato).
   class MeshBucket
-    attr_reader :node, :material_id, :positions, :normals, :indices
+    attr_reader :node, :material_id, :positions, :normals, :indices, :uvs
     attr_accessor :category, :label
 
     def initialize(node, material_id)
@@ -24,6 +24,8 @@ module BlenditSU
       @positions = []   # x,y,z achatados (Z-up, polegadas)
       @normals = []
       @indices = []
+      @uvs = []         # u,v achatados (unidades de textura); vazio = sem UV
+      @uv_ok = true     # vira false se alguma face entrar sem UV
       @category = ''
       @label = ''
     end
@@ -40,21 +42,36 @@ module BlenditSU
         @normals.push(normal[0].to_f, normal[1].to_f, normal[2].to_f)
       end
       tris.each { |t| @indices.push(base + t[0], base + t[1], base + t[2]) }
+      @uv_ok = false            # faces planas antigas não trazem UV
+      @uvs.push(*([0.0] * (pts.length * 2)))
     end
 
-    # Igual a `add`, mas com uma normal por vértice (superfícies suavizadas).
-    def add_smooth(pts, normals, tris)
+    # Igual a `add`, mas com uma normal por vértice (superfícies suavizadas) e,
+    # opcionalmente, uma coordenada de textura por vértice.
+    def add_smooth(pts, normals, tris, uvs = nil)
       base = vertex_count
+      @uv_ok = false if uvs.nil? || uvs.length != pts.length
       pts.each_with_index do |p, i|
         n = normals[i]
         @positions.push(p[0].to_f, p[1].to_f, p[2].to_f)
         @normals.push(n[0].to_f, n[1].to_f, n[2].to_f)
+        uv = uvs && uvs[i]
+        @uvs.push(uv ? uv[0].to_f : 0.0, uv ? uv[1].to_f : 0.0)
       end
       tris.each { |t| @indices.push(base + t[0], base + t[1], base + t[2]) }
     end
 
     def empty?
       @indices.empty?
+    end
+
+    # Só vale UV se TODOS os vértices têm (senão o Blender recebe zeros).
+    def uvs?
+      @uv_ok && !@uvs.empty? && @uvs.length == vertex_count * 2
+    end
+
+    def drop_uvs!
+      @uv_ok = false
     end
   end
 
@@ -126,6 +143,22 @@ module BlenditSU
         prim['attributes']['NORMAL'] =
           push_view(blob, views, accessors, nrm.pack('e*'), 34962,
                     'componentType' => FLOAT, 'count' => b.vertex_count, 'type' => 'VEC3')
+
+        if b.uvs?
+          # glTF tem a origem da imagem no canto de CIMA (v para baixo); o
+          # SketchUp e o Blender, no de baixo. O importador do Blender desfaz
+          # este 1 - v.
+          tc = Array.new(b.uvs.length)
+          i = 0
+          while i < b.uvs.length
+            tc[i] = b.uvs[i]
+            tc[i + 1] = 1.0 - b.uvs[i + 1]
+            i += 2
+          end
+          prim['attributes']['TEXCOORD_0'] =
+            push_view(blob, views, accessors, tc.pack('e*'), 34962,
+                      'componentType' => FLOAT, 'count' => b.vertex_count, 'type' => 'VEC2')
+        end
 
         prim['indices'] =
           push_view(blob, views, accessors, b.indices.pack('V*'), 34963,

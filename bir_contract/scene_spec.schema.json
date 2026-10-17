@@ -103,7 +103,9 @@
         "scale_m": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
         "offset_m": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
         "rotation_deg": { "type": "number" },
-        "amount": { "type": "number" }
+        "amount": { "type": "number" },
+        "alpha": { "type": "boolean" },
+        "uv": { "type": "boolean", "description": "true: the geometry carries TEXCOORD_0 (the source app's own texture placement) for this material; sample this map through it. Absent/false: real-world box projection with scale_m." }
       }
     },
     "camera": {

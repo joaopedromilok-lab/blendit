@@ -80,8 +80,16 @@ module Geom
 
   class PolygonMesh
     attr_reader :points, :polygons
-    def initialize(points, polygons)
+    def initialize(points, polygons, uvs_front = nil, uvs_back = nil)
       @points = points; @polygons = polygons
+      @uvf = uvs_front; @uvb = uvs_back
+    end
+    # Como no SketchUp: índice a partir de 1, UVQ (Point3d com Q em z).
+    def uv_at(i, front)
+      l = front ? @uvf : @uvb
+      return nil unless l && l[i - 1]
+      u, v, q = l[i - 1]
+      Point3d.new(u, v, q || 1.0)
     end
   end
 
@@ -167,6 +175,9 @@ module Sketchup
 
   class Face
     attr_accessor :material, :back_material, :layer, :hidden
+    # UVs posicionadas pela "arquiteta" (unidades de textura, uma por vértice),
+    # como quando se usa Posição de textura / Projetada no SketchUp.
+    attr_accessor :uv_front, :uv_back
     attr_reader :vertices, :edges, :normal
     def initialize(verts, edges)
       @vertices = verts; @edges = edges
@@ -186,9 +197,32 @@ module Sketchup
       Geom::BoundingBox.new([ps.map(&:x).min, ps.map(&:y).min, ps.map(&:z).min],
                             [ps.map(&:x).max, ps.map(&:y).max, ps.map(&:z).max])
     end
-    def mesh(_flags = 0)
+    def mesh(flags = 0)
       n = @vertices.length
-      Geom::PolygonMesh.new(@vertices.map(&:position), (1...(n - 1)).map { |k| [1, k + 1, k + 2] })
+      pts = @vertices.map(&:position)
+      Geom::PolygonMesh.new(pts, (1...(n - 1)).map { |k| [1, k + 1, k + 2] },
+                            flags & 1 != 0 ? side_uvs(pts, @uv_front, @material) : nil,
+                            flags & 2 != 0 ? side_uvs(pts, @uv_back, @back_material) : nil)
+    end
+
+    # Comportamento do SketchUp imitado: textura posicionada -> as UVs dela;
+    # material com textura sem posição -> projeção padrão / tamanho da textura;
+    # sem material (herda do grupo) -> projeção padrão em POLEGADAS.
+    def side_uvs(pts, explicit, mat)
+      return explicit.map { |u, v, q| [u, v, q || 1.0] } if explicit
+      raw = pts.map { |p| default_uv(p) }
+      tex = mat && mat.texture
+      return raw.map { |u, v| [u, v, 1.0] } unless tex
+      raw.map { |u, v| [u / tex.width, v / tex.height, 1.0] }
+    end
+
+    def default_uv(p)
+      if @normal.z.abs > 0.99
+        [p.x, p.y]
+      else
+        h = Geom::Vector3d.new(-@normal.y, @normal.x, 0.0).normalize
+        [p.x * h.x + p.y * h.y, p.z]
+      end
     end
   end
 

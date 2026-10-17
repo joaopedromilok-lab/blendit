@@ -48,6 +48,9 @@ As imagens ficam em `Documentos\Blendit Renders` (dá para trocar em Configuraç
 - Toda a geometria visível: respeita objetos ocultos, etiquetas (tags) e pastas de
   etiquetas desligadas; grupos e componentes (inclusive espelhados) com suas
   transformações.
+- Texturas posicionadas como no SketchUp (coordenadas de textura de cada face):
+  rotação, deslocamento, imagem esticada (quadros, TV), textura herdada do grupo
+  e lado de trás pintado. Sem mapeamento válido, usa a projeção em escala real.
 - Materiais: cor, transparência (vira vidro), textura em tamanho real e, no
   SketchUp 2025+, metálico/rugosidade dos materiais PBR. Pintura feita no grupo ou
   componente também vale para as faces sem material.

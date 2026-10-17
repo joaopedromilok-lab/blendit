@@ -7,6 +7,7 @@ require 'json'
 require_relative 'exporter'
 require_relative 'texturas'
 require_relative 'atualizacao'
+require_relative 'ceus'
 
 module BlenditSU
   PLUGIN_DIR = File.dirname(__FILE__).freeze
@@ -191,6 +192,10 @@ module BlenditSU
              resolution: [width, 0], denoise: qcfg[:denoise],
              noite: extra.key?(:noite) ? extra[:noite] : night?,
              flip_section: flip_section? }
+    m = opts[:mode].to_s
+    if !opts[:noite] && %w[realistic specular].include?(m) && Ceus.escolhido != 'simulado'
+      opts[:ceu] = Ceus.opcoes
+    end
     dir = File.join(cache_dir, folder_name)
     clean_cache
     Sketchup.status_text = 'Blendit: preparando a cena para o Blender...'
@@ -572,6 +577,11 @@ module BlenditSU
     luz.set_validation_proc(id) { night? ? MF_UNCHECKED : MF_CHECKED }
     id = luz.add_item('Noite (só as luminárias)') { set_pref('noite', '1') }
     luz.set_validation_proc(id) { night? ? MF_CHECKED : MF_UNCHECKED }
+    ceu = menu.add_submenu('Céu')
+    Ceus::LISTA.each do |k, c|
+      id = ceu.add_item(c[:nome]) { set_pref('ceu', k) }
+      ceu.set_validation_proc(id) { Ceus.escolhido == k ? MF_CHECKED : MF_UNCHECKED }
+    end
     id = menu.add_item('Inverter lado do corte') { toggle('flip_section') }
     menu.set_validation_proc(id) { flip_section? ? MF_CHECKED : MF_UNCHECKED }
     menu.add_separator

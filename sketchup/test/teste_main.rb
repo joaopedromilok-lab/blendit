@@ -121,8 +121,31 @@ end
 BlenditSU::Atualizacao.verificar
 puts "instalado: #{Sketchup.installed}"
 puts UI.log.last
-remote['versao'] = '0.3.3'
+remote['versao'] = '0.3.4'
 BlenditSU::Atualizacao.verificar
 puts UI.log.last
 puts "timer agendado: #{UI.timers.length}"
 
+
+puts '--- Céu fotografado'
+Sketchup.write_default('BlenditSketchUp', 'mode', 'realistic')
+Sketchup.write_default('BlenditSketchUp', 'ceu', 'limpo')
+BlenditSU::Texturas.define_singleton_method(:download) do |url, path|
+  FileUtils.mkdir_p(File.dirname(path))
+  if url.include?('/files/')
+    File.write(path, JSON.generate('hdri' => { '2k' => { 'hdr' => { 'url' => 'https://exemplo/ceu.hdr' } } }))
+  else
+    File.binwrite(path, 'x' * 200_000)
+  end
+  path
+end
+BlenditSU.render_view
+spec_dir = File.join(ENV['LOCALAPPDATA'], 'BlenditSketchUp', 'cache')
+spec = Dir.glob(File.join(ENV['LOCALAPPDATA'], '**', 'scene_spec.json')).max_by { |f| File.mtime(f) }
+j = JSON.parse(File.read(spec))
+puts "céu: #{j['world'].slice('sky_type', 'hdri_uri', 'hdri_strength', 'hdri_normalize')} sol: #{j['sun']['strength']}"
+puts "hdr no pacote: #{File.size?(File.join(File.dirname(spec), j['world']['hdri_uri'].to_s)).inspect}"
+Sketchup.write_default('BlenditSketchUp', 'noite', '1')
+BlenditSU.render_view
+spec = Dir.glob(File.join(ENV['LOCALAPPDATA'], '**', 'scene_spec.json')).max_by { |f| File.mtime(f) }
+puts "noite: #{JSON.parse(File.read(spec))['world']['sky_type']}"

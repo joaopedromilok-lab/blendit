@@ -76,7 +76,7 @@ def setup_world(spec, scale):
               "%.1f so the render isn't night (azimuth kept)." % (alt_deg, _MIN_SUN_ALT))
         alt_deg = _MIN_SUN_ALT
 
-    _build_sky(world_spec, alt_deg, az_deg)
+    _build_sky(world_spec, alt_deg, az_deg, base_dir=spec.get("_override_dir"))
     _build_sun_lamp(sun, alt_deg, az_deg)
 
 
@@ -155,7 +155,7 @@ def _to_sun_vector(alt_deg, az_deg):
                              math.sin(alt))).normalized()
 
 
-def _build_sky(world_spec, alt_deg, az_deg):
+def _build_sky(world_spec, alt_deg, az_deg, base_dir=None):
     sky_type = str(world_spec.get("sky_type", "nishita"))
     strength = float(world_spec.get("strength", 1.0))
 
@@ -176,7 +176,14 @@ def _build_sky(world_spec, alt_deg, az_deg):
     bg.inputs["Strength"].default_value = strength * _SKY_GAIN
     nt.links.new(bg.outputs["Background"], out.inputs["Surface"])
 
-    if sky_type == "nishita":
+    hdri = _hdri_path(world_spec, base_dir) if sky_type == "hdri" else None
+    if sky_type == "hdri" and hdri is None:
+        print("[Blendit] HDRI sky requested but the file is missing - using the "
+              "physical sky instead.")
+        sky_type = "nishita"
+    if hdri is not None:
+        _build_hdri(nt, bg, hdri, world_spec, strength, az_deg)
+    elif sky_type == "nishita":
         sky = nt.nodes.new("ShaderNodeTexSky")
         sky.location = (-200, 0)
         # The physical sky enum churned: 4.x exposes 'NISHITA'; Blender 5.0 replaced
@@ -193,8 +200,106 @@ def _build_sky(world_spec, alt_deg, az_deg):
         albedo = world_spec.get("ground_albedo", [0.3, 0.3, 0.3])
         bg.inputs["Color"].default_value = (albedo[0], albedo[1], albedo[2], 1.0)
     else:
-        # TODO (Phase 1): hdri sky_type -> ShaderNodeTexEnvironment from world.hdri_uri.
         bg.inputs["Color"].default_value = (0.05, 0.06, 0.08, 1.0)
+
+
+def _hdri_path(world_spec, base_dir):
+    import os
+    uri = world_spec.get("hdri_uri")
+    if not uri:
+        return None
+    path = uri if os.path.isabs(uri) else os.path.join(base_dir or "", uri.replace("/", os.sep))
+    return path if os.path.isfile(path) else None
+
+
+def _build_hdri(nt, bg, path, world_spec, strength, az_deg):
+    """A real photographed sky (equirectangular HDR) as background + ambient
+    light. It is rotated so ITS sun sits where the model's sun lamp is, so the
+    HDRI's highlights and the lamp's shadows agree (skipped on overcast skies,
+    which have no clear sun)."""
+    img = bpy.data.images.load(path, check_existing=True)
+    env = nt.nodes.new("ShaderNodeTexEnvironment")
+    env.location = (-200, 0)
+    env.image = img
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    tc.location = (-600, 0)
+    mp = nt.nodes.new("ShaderNodeMapping")
+    mp.location = (-400, 0)
+    rot = world_spec.get("hdri_rotation_deg")
+    if rot is None:
+        rot = _align_rotation(img, az_deg)
+    mp.inputs["Rotation"].default_value = (0.0, 0.0, math.radians(float(rot or 0.0)))
+    nt.links.new(tc.outputs["Generated"], mp.inputs["Vector"])
+    nt.links.new(mp.outputs["Vector"], env.inputs["Vector"])
+    gain = float(world_spec.get("hdri_strength", 1.0))
+    color_out = env.outputs["Color"]
+    if world_spec.get("hdri_normalize"):
+        # Photographed skies have arbitrary brightness. Measure it and scale so
+        # the sky lights the model with `hdri_strength` (mean sky radiance) -
+        # every preset then sits at a known level next to the sun lamp. The
+        # HDRI's own sun disc is clamped away: the sun lamp (SketchUp/Revit
+        # shadow settings) is the sun, so there are never two shadows.
+        clamp, l_eff = _sky_stats(img)
+        if clamp is not None:
+            mn = nt.nodes.new("ShaderNodeVectorMath")
+            mn.operation = "MINIMUM"
+            mn.location = (-20, -160)
+            mn.inputs[1].default_value = (clamp, clamp, clamp)
+            nt.links.new(env.outputs["Color"], mn.inputs[0])
+            color_out = mn.outputs["Vector"]
+        if l_eff:
+            gain = gain / l_eff
+            print("[Blendit] HDRI sky: clamp %.2f, mean %.3f -> strength %.3f"
+                  % (clamp or 0.0, l_eff, gain))
+    nt.links.new(color_out, bg.inputs["Color"])
+    bg.inputs["Strength"].default_value = strength * gain
+
+
+def _sky_stats(img):
+    """(clamp, effective radiance) of an equirect sky: clamp = level above which
+    pixels are the sun disc; effective radiance = cosine-weighted mean of the
+    clamped upper hemisphere (what lights a horizontal surface)."""
+    try:
+        import numpy as np
+        w, h = img.size
+        px = np.empty(w * h * img.channels, dtype=np.float32)
+        img.pixels.foreach_get(px)
+        px = px.reshape(h, w, img.channels)[h // 2:, :, :3]  # bottom-up: upper sky
+        lum = px[:, :, 0] * 0.2126 + px[:, :, 1] * 0.7152 + px[:, :, 2] * 0.0722
+        clamp = float(np.percentile(lum, 99.5)) * 2.0
+        if clamp <= 0:
+            return None, None
+        lat = (np.arange(lum.shape[0]) + 0.5) / lum.shape[0] * (math.pi / 2.0)
+        wgt = (np.sin(lat) * np.cos(lat))[:, None]          # row 0 = horizon
+        clipped = np.minimum(px, clamp).mean(axis=2)
+        l_eff = float((clipped * wgt).sum() / (wgt.sum() * lum.shape[1]))
+        return clamp, (l_eff if l_eff > 1e-6 else None)
+    except Exception:
+        return None, None
+
+
+def _align_rotation(img, az_deg):
+    """Degrees to rotate the HDRI about Z so its brightest point (the sun) lines
+    up with the sun lamp's azimuth. 0 when there is no distinct sun."""
+    try:
+        import numpy as np
+        w, h = img.size
+        px = np.empty(w * h * img.channels, dtype=np.float32)
+        img.pixels.foreach_get(px)
+        px = px.reshape(h, w, img.channels)
+        lum = px[:, :, 0] * 0.2126 + px[:, :, 1] * 0.7152 + px[:, :, 2] * 0.0722
+        top = lum[h // 2:, :]                       # pixels are bottom-up: upper sky
+        y, x = np.unravel_index(int(np.argmax(top)), top.shape)
+        if float(top[y, x]) < 8.0 * float(np.median(top)):
+            return 0.0                              # overcast: no clear sun
+        u = (x + 0.5) / w
+        # Cycles equirect: u = (pi - atan2(dir.y, dir.x)) / 2pi
+        ang_hdri = math.pi - 2.0 * math.pi * u
+        az = math.radians(az_deg)
+        ang_sun = math.atan2(math.cos(az), math.sin(az))   # lamp dir = (sin az, cos az)
+        return math.degrees(ang_hdri - ang_sun)
+    except Exception:
+        return 0.0
 
 
 def _build_sun_lamp(sun, alt_deg, az_deg):

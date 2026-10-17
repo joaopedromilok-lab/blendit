@@ -729,6 +729,11 @@ def _apply_mode(mode):
         apply_interior(_SPEC)
     except Exception:
         pass
+    try:                                   # presets rebuilt the materials: re-bevel
+        from blender.pipeline.bevel import apply_bevel
+        apply_bevel(_SPEC)
+    except Exception:
+        pass
     _sync_settings_from_scene()
     _apply_user_sun(getattr(bpy.context.scene, "bir", None))  # keep the user's sun
     if mode == "crosshatch":

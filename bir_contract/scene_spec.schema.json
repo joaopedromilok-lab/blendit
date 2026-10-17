@@ -87,7 +87,8 @@
               "type": "object",
               "properties": {
                 "diffuse": { "$ref": "#/$defs/texture_map" },
-                "bump": { "$ref": "#/$defs/texture_map" }
+                "bump": { "$ref": "#/$defs/texture_map" },
+                "roughness": { "$ref": "#/$defs/texture_map" }
               }
             }
           ]
@@ -170,7 +171,10 @@
         "hdri_uri": { "type": ["string", "null"] },
         "strength": { "type": "number" },
         "ground_albedo": { "$ref": "#/$defs/rgb" },
-        "has_site": { "type": "boolean" }
+        "has_site": { "type": "boolean" },
+        "hdri_strength": { "type": "number" },
+        "hdri_rotation_deg": { "type": ["number", "null"] },
+        "hdri_normalize": { "type": "boolean" }
       }
     },
     "render": {

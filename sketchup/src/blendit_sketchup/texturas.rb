@@ -299,7 +299,7 @@ module BlenditSU
     end
 
     # ------------------------------------------------------------- buscar textura
-    # -> [cor, relevo|nil, [larg_m, alt_m]]
+    # -> [cor, relevo|nil, [larg_m, alt_m], rugosidade|nil]
     def self.fetch(entry)
       _g, _n, src, id, size_m, _r = entry
       src == :acg ? fetch_acg(id, size_m) : fetch_ph(id)
@@ -323,25 +323,56 @@ module BlenditSU
           bump = nil
         end
       end
+      rugo = nil
+      rough_url = pick(files, 'Rough', %w[1k 2k])
+      if rough_url
+        rugo = File.join(d, 'rugo.jpg')
+        begin
+          download(rough_url, rugo) unless File.size?(rugo)
+        rescue StandardError
+          rugo = nil
+        end
+      end
       dims = info['dimensions'] || [1000, 1000]
-      [diff, bump, [dims[0].to_f / 1000.0, dims[1].to_f / 1000.0]]
+      [diff, bump, [dims[0].to_f / 1000.0, dims[1].to_f / 1000.0], rugo]
     end
 
     def self.fetch_acg(id, size_m)
       d = File.join(dir, "acg_#{id}")
       cor = Dir.glob(File.join(d, 'cor.*')).first
-      unless cor
-        zip = File.join(d, 'pacote.zip')
-        download(format(ACG_GET, id), zip)
-        got = unzip_pick(zip, d, 'cor' => /_Color\.(jpe?g|png)\z/i,
-                                 'relevo' => /_Displacement\.(jpe?g|png)\z/i)
-        File.delete(zip) if File.exist?(zip)
-        cor = got['cor']
+      # Baixadas antes da versão 0.3.4 não têm o mapa de rugosidade: busca de novo
+      # uma vez (a marca 'v2' evita repetir quando a textura não tem esse mapa).
+      marca = File.join(d, 'v2')
+      if cor.nil? || !File.exist?(marca)
+        begin
+          zip = File.join(d, 'pacote.zip')
+          download(format(ACG_GET, id), zip)
+          got = unzip_pick(zip, d, 'cor' => /_Color\.(jpe?g|png)\z/i,
+                                   'relevo' => /_Displacement\.(jpe?g|png)\z/i,
+                                   'rugo' => /_Roughness\.(jpe?g|png)\z/i)
+          File.delete(zip) if File.exist?(zip)
+          File.write(marca, '1')
+          cor ||= got['cor']
+        rescue StandardError
+          raise unless cor            # sem internet: segue com o que já tem
+        end
         raise "Textura #{id} sem imagem de cor." unless cor
       end
       bump = Dir.glob(File.join(d, 'relevo.*')).first
+      rugo = Dir.glob(File.join(d, 'rugo.*')).first
       s = (size_m || 1.0).to_f
-      [cor, bump, [s, s]]
+      [cor, bump, [s, s], rugo]
+    end
+
+    # Mapa de rugosidade já baixado de uma textura da biblioteca (pelo id), para
+    # materiais criados antes da versão 0.3.4.
+    def self.rugo_em_cache(id)
+      return nil if id.to_s.empty?
+      [File.join(dir, id.to_s), File.join(dir, "acg_#{id}")].each do |d|
+        f = Dir.glob(File.join(d, 'rugo.*')).first
+        return f if f
+      end
+      nil
     end
 
     def self.pick(files, key, sizes)
@@ -360,20 +391,21 @@ module BlenditSU
     # ------------------------------------------------------------- material
     INCH = 1.0 / 0.0254
 
-    def self.material_from(model, name, img, bump, wm, hm, rough, tag)
+    def self.material_from(model, name, img, bump, wm, hm, rough, tag, rugo = nil)
       mat = model.materials[name] || model.materials.add(name)
       mat.texture = img
       mat.texture.size = [wm * INCH, hm * INCH] if mat.texture
       mat.set_attribute('blendit', 'textura', tag)
       mat.set_attribute('blendit', 'rugosidade', rough)
       mat.set_attribute('blendit', 'relevo', bump) if bump
+      mat.set_attribute('blendit', 'rugosidade_mapa', rugo) if rugo
       mat
     end
 
     def self.create_material(model, entry)
       _g, nome, _src, id, _s, rough = entry
-      diff, bump, (wm, hm) = fetch(entry)
-      material_from(model, "#{nome} (Blendit)", diff, bump, wm, hm, rough, id)
+      diff, bump, (wm, hm), rugo = fetch(entry)
+      material_from(model, "#{nome} (Blendit)", diff, bump, wm, hm, rough, id, rugo)
     end
 
     # ------------------------------------------------------------- minhas texturas

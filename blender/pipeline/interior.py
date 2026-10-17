@@ -27,6 +27,9 @@ _WHITE_BALANCE_K = 9000.0
 # lamps dominate, so it needs more exposure and a slightly COOLER white point.
 _EXPOSURE_BOOST_CYCLES = 1.0
 _WHITE_BALANCE_K_CYCLES = 5800.0
+# Photographed (HDRI) skies: near neutral.
+_WHITE_BALANCE_K_HDRI = 7500.0
+_WHITE_BALANCE_K_HDRI_CYCLES = 6500.0
 
 
 def camera_is_inside(max_up=8.0, max_side=25.0):
@@ -69,6 +72,10 @@ def apply_interior(spec):
     cycles = scene.render.engine == "CYCLES"
     boost = _EXPOSURE_BOOST_CYCLES if cycles else _EXPOSURE_BOOST
     wb = _WHITE_BALANCE_K_CYCLES if cycles else _WHITE_BALANCE_K
+    if str((spec.get("world") or {}).get("sky_type")) == "hdri":
+        # A photographed sky is far less blue than the simulated one: keep the
+        # white point close to neutral or the room turns pink/orange.
+        wb = _WHITE_BALANCE_K_HDRI_CYCLES if cycles else _WHITE_BALANCE_K_HDRI
     view.exposure = float(view.exposure) + boost
     # EEVEE lights a room mostly with the blue sky probe -> warm it to neutral;
     # Cycles bounces the warm lamps physically -> cool it slightly.

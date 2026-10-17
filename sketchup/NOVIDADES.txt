@@ -1,2 +1,3 @@
-- Placa de vídeo: a qualidade Alta e Final (Cycles) agora usa a GPU automaticamente - muito mais rápido.
-- Ambientes internos: quando a câmera está dentro de um ambiente, o render ajusta sozinho a exposição, a cor (sem o tom azulado) e a luz que rebate nas paredes.
+- Céu de verdade: novo menu Blendit > Céu com 4 céus fotografados (limpo, parcialmente nublado, nublado e fim de tarde). Baixa uma vez e fica guardado.
+- Materiais da biblioteca agora têm mapa de brilho: o reflexo varia pela superfície (madeira, piso, pedra) como no material real.
+- Cantos levemente arredondados (6 mm) nos renders de qualidade Alta e Final - as quinas pegam luz como num objeto de verdade.

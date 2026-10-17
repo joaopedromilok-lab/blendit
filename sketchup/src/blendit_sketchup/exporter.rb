@@ -44,6 +44,7 @@ module BlenditSU
       FileUtils.rm_rf(out_dir)
       FileUtils.mkdir_p(out_dir)
       @tex_dir = File.join(out_dir, 'textures')
+      copy_hdri(out_dir)
 
       @bounds = @model.bounds
       walk(@model.entities, Geom::Transformation.new, nil, ['Soltos', 'Geometria solta', ''], 0)
@@ -454,6 +455,8 @@ module BlenditSU
         rec['maps'] = { 'diffuse' => tex }
         bump = bump_map(mat, id, tex)
         rec['maps']['bump'] = bump if bump
+        rugo = rough_map(mat, id, tex)
+        rec['maps']['roughness'] = rugo if rugo
       end
       rec
     end
@@ -494,6 +497,22 @@ module BlenditSU
       fname = "#{id}_relevo#{File.extname(src)}"
       FileUtils.cp(src, File.join(@tex_dir, fname))
       { 'uri' => "textures/#{fname}", 'scale_m' => diffuse['scale_m'], 'amount' => 0.35 }
+    rescue StandardError
+      nil
+    end
+
+    # Mapa de rugosidade (onde a superfície brilha mais ou menos), mesma escala.
+    def rough_map(mat, id, diffuse)
+      src = attr_of(mat, 'rugosidade_mapa').to_s
+      if src.empty? || !File.file?(src)
+        tag = attr_of(mat, 'textura')
+        src = (defined?(Texturas) && tag ? Texturas.rugo_em_cache(tag) : nil).to_s
+      end
+      return nil if src.empty? || !File.file?(src)
+      FileUtils.mkdir_p(@tex_dir)
+      fname = "#{id}_rugosidade#{File.extname(src)}"
+      FileUtils.cp(src, File.join(@tex_dir, fname))
+      { 'uri' => "textures/#{fname}", 'scale_m' => diffuse['scale_m'] }
     rescue StandardError
       nil
     end
@@ -572,10 +591,7 @@ module BlenditSU
         'camera' => camera,
         'sun' => sun_spec,
         'lights' => @lights,
-        'world' => { 'sky_type' => 'nishita', 'hdri_uri' => nil,
-                     'strength' => @opts[:noite] ? 0.02 : 1.0,
-                     'ground_albedo' => [0.3, 0.3, 0.3], 'has_site' => has_site?,
-                     'ground_under_site' => true },
+        'world' => world_spec,
         'render' => {
           'mode' => (@opts[:mode] || 'realistic').to_s,
           'engine' => (@opts[:engine] || 'EEVEE').to_s,
@@ -589,12 +605,39 @@ module BlenditSU
       }
     end
 
+    def world_spec
+      w = { 'sky_type' => 'nishita', 'hdri_uri' => nil,
+            'strength' => @opts[:noite] ? 0.02 : 1.0,
+            'ground_albedo' => [0.3, 0.3, 0.3], 'has_site' => has_site?,
+            'ground_under_site' => true }
+      c = @hdri
+      return w unless c
+      w.merge('sky_type' => 'hdri', 'hdri_uri' => c[:uri], 'hdri_strength' => c[:ceu].to_f,
+              'hdri_normalize' => true)
+    end
+
+    # Céu fotografado (HDRI): copia o .hdr para o pacote. Só de dia e nos
+    # estilos com luz; nos outros o céu simulado/neutro continua.
+    def copy_hdri(out_dir)
+      c = @opts[:ceu]
+      return unless c && c[:path] && File.file?(c[:path].to_s)
+      return if @opts[:noite] || !%w[realistic specular].include?(@opts[:mode].to_s)
+      d = File.join(out_dir, 'hdri')
+      FileUtils.mkdir_p(d)
+      name = File.basename(c[:path])
+      FileUtils.cp(c[:path], File.join(d, name))
+      @hdri = c.merge(uri: "hdri/#{name}")
+    rescue StandardError
+      @hdri = nil
+    end
+
     # Sol: a mesma direção que gera as sombras do SketchUp (Janela > Sombras).
     def sun_spec
       si = @model.shadow_info
       d = si['SunDirection'] # aponta PARA o sol, nos eixos do modelo
       # Cena noturna: sol apagado e céu quase escuro - só as luminárias iluminam.
-      base = { 'strength' => @opts[:noite] ? 0.0 : 1.0, 'angle_degrees' => 0.526, 'color' => nil,
+      forca = @opts[:noite] ? 0.0 : (@hdri ? @hdri[:sol].to_f : 1.0)
+      base = { 'strength' => forca, 'angle_degrees' => 0.526, 'color' => @hdri ? @hdri[:cor] : nil,
                'daylight_saving' => false, 'latitude' => nil, 'longitude' => nil,
                'date' => nil, 'time' => nil, 'timezone' => nil,
                'azimuth_degrees' => nil, 'altitude_degrees' => nil }

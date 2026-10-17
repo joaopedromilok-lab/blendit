@@ -32,6 +32,7 @@ está o `blender.exe`.
 | **Importar catálogo (pasta ou .zip)** | Em Minhas texturas: importa de uma vez o pacote de texturas de um fabricante. Nome, medida e acabamento saem do nome de cada arquivo (`CALACATA ORO 90X90 POL.jpg` → Calacata Oro, 90 × 90 cm, polido; medidas em mm como `1200x1200` viram cm). Subpastas viram coleções. Uma lista de revisão aparece antes: linhas sem medida ficam em laranja e as já importadas vêm desmarcadas. Até 500 imagens por vez. |
 | **Montar prancha com imagens de uma pasta** | Prancha em PDF (A4 a A1) com até 12 imagens de uma pasta. |
 | **Iluminação: Dia / Noite** | Noite apaga o sol e o céu - só as luminárias iluminam. |
+| **Céu** | Céu simulado (padrão) ou um céu fotografado em HDRI: limpo ao meio-dia, parcialmente nublado, nublado (luz suave, sem sombra marcada) ou fim de tarde. O céu aparece nas janelas e ilumina o ambiente; o sol continua vindo de Janela > Sombras. Cada céu é baixado uma vez (~6 MB, Poly Haven, CC0). Vale para os estilos Realista e Realista brilhante, de dia. |
 | **Inverter lado do corte** | Se o corte sair do lado errado, marque esta opção. |
 | **Estilo / Qualidade** | Submenus para escolher o visual e o esforço do render (Rascunho, Boa, Alta, Final). |
 | **Configurações** | Estilo e qualidade padrão, pasta dos renders e caminho do Blender. |
@@ -50,6 +51,10 @@ As imagens ficam em `Documentos\Blendit Renders` (dá para trocar em Configuraç
 - Câmera exatamente como na tela: perspectiva ou paralela, campo de visão e
   proporção da janela.
 - Sol: a mesma direção das sombras do SketchUp (Janela > Sombras).
+- Materiais da biblioteca levam também o mapa de brilho (rugosidade): o reflexo
+  varia pela superfície, mantendo o acabamento escolhido (polido, acetinado, fosco).
+- Nos renders Alta e Final (Cycles), as quinas saem levemente arredondadas (6 mm)
+  e pegam luz como num objeto real - sem mudar o modelo.
 - Terreno: se o modelo já tem um terreno grande, o Blendit não cria o chão
   artificial por cima dele - só um plano logo abaixo, para o horizonte não ficar vazio.
 

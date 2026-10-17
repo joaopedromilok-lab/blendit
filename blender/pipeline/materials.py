@@ -124,6 +124,20 @@ def _map_path(entry, base_dir):
     return path if os.path.isfile(path) else None
 
 
+def _image_mean(img):
+    """Average of the first channel (roughness maps are grey). None on failure."""
+    try:
+        import numpy as np
+        n = img.size[0] * img.size[1]
+        if n <= 0:
+            return None
+        px = np.empty(n * img.channels, dtype=np.float32)
+        img.pixels.foreach_get(px)
+        return float(px[0::img.channels].mean())
+    except Exception:
+        return None
+
+
 def _build_revit_maps(nt, bsdf, rec, base_dir):
     """Real Revit appearance textures (contract 0.2.0 `maps`): the diffuse bitmap
     box-projected at its real-world scale, plus the bump map when present. Returns
@@ -172,6 +186,31 @@ def _build_revit_maps(nt, bsdf, rec, base_dir):
             mat.blend_method = "HASHED"
         if hasattr(mat, "use_transparent_shadow"):
             mat.use_transparent_shadow = True
+
+    rpath = _map_path(maps.get("roughness"), base_dir)
+    if rpath is not None:
+        # Roughness map: the surface's shine varies across it (worn spots,
+        # grout, wood grain) - a big part of what reads as a real material.
+        rimg = nt.nodes.new("ShaderNodeTexImage")
+        rimg.location = (-460, -560)
+        rimg.image = bpy.data.images.load(rpath, check_existing=True)
+        rimg.image.colorspace_settings.name = "Non-Color"
+        rimg.projection = "BOX"
+        rimg.projection_blend = 0.25
+        nt.links.new(mp.outputs["Vector"], rimg.inputs["Vector"])
+        # Keep the finish the user picked (polished / satin / matte): the map
+        # only adds variation around it, scaled so its average lands on the
+        # material's roughness value.
+        target = float(rec.get("roughness", 0.5) or 0.5)
+        mean = _image_mean(rimg.image)
+        factor = target / mean if mean and mean > 0.02 else 1.0
+        mul = nt.nodes.new("ShaderNodeMath")
+        mul.operation = "MULTIPLY"
+        mul.use_clamp = True
+        mul.location = (-220, -560)
+        mul.inputs[1].default_value = max(0.05, min(factor, 4.0))
+        nt.links.new(rimg.outputs["Color"], mul.inputs[0])
+        nt.links.new(mul.outputs["Value"], bsdf.inputs["Roughness"])
 
     bpath = _map_path(maps.get("bump"), base_dir)
     if bpath is not None:

@@ -89,6 +89,11 @@ def prepare_scene(loaded, spec):
         apply_interior(spec)
     except Exception:
         pass
+    try:
+        from .bevel import apply_bevel         # rounded edges (Cycles)
+        apply_bevel(spec)
+    except Exception:
+        pass
     return loaded, spec
 
 

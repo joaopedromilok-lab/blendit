@@ -1,5 +1,5 @@
 {
-  "versao": "0.3.3",
+  "versao": "0.3.4",
   "rbz": "https://raw.githubusercontent.com/joaopedromilok-lab/blendit/main/sketchup/release/blendit_sketchup.rbz",
-  "novidades": "- Placa de vídeo: a qualidade Alta e Final (Cycles) agora usa a GPU automaticamente - muito mais rápido.\n- Ambientes internos: quando a câmera está dentro de um ambiente, o render ajusta sozinho a exposição, a cor (sem o tom azulado) e a luz que rebate nas paredes."
+  "novidades": "- Céu de verdade: novo menu Blendit > Céu com 4 céus fotografados (limpo, parcialmente nublado, nublado e fim de tarde). Baixa uma vez e fica guardado.\n- Materiais da biblioteca agora têm mapa de brilho: o reflexo varia pela superfície (madeira, piso, pedra) como no material real.\n- Cantos levemente arredondados (6 mm) nos renders de qualidade Alta e Final - as quinas pegam luz como num objeto de verdade."
 }

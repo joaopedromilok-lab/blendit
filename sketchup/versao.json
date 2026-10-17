@@ -1,5 +1,5 @@
 {
-  "versao": "0.3.4",
+  "versao": "0.3.5",
   "rbz": "https://raw.githubusercontent.com/joaopedromilok-lab/blendit/main/sketchup/release/blendit_sketchup.rbz",
-  "novidades": "- Céu de verdade: novo menu Blendit > Céu com 4 céus fotografados (limpo, parcialmente nublado, nublado e fim de tarde). Baixa uma vez e fica guardado.\n- Materiais da biblioteca agora têm mapa de brilho: o reflexo varia pela superfície (madeira, piso, pedra) como no material real.\n- Cantos levemente arredondados (6 mm) nos renders de qualidade Alta e Final - as quinas pegam luz como num objeto de verdade."
+  "novidades": "- Preparação da cena bem mais rápida em projetos pesados (cortinas, almofadas, móveis curvos, muitos componentes repetidos) - o SketchUp fica menos tempo \"Não está respondendo\".\n- (0.3.4) Céus fotografados no menu Blendit > Céu, mapa de brilho nas texturas da biblioteca e cantos arredondados nos renders Alta e Final."
 }

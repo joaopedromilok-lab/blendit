@@ -50,6 +50,7 @@ module BlenditSU
       walk(@model.entities, Geom::Transformation.new, nil, ['Soltos', 'Geometria solta', ''], 0)
       raise 'Nada visível para exportar nesta vista.' if @buckets.empty?
 
+      @geom_cache = @vnorm_cache = nil       # libera a memória antes de gravar
       spec = build_spec
       BundleWriter.new.write(@buckets.values, spec, out_dir)
     end
@@ -61,6 +62,13 @@ module BlenditSU
       return false if e.respond_to?(:hidden?) && e.hidden?
       layer = e.respond_to?(:layer) ? e.layer : nil
       return true if layer.nil?
+      @layer_vis ||= {}
+      k = ent_key(layer)
+      return @layer_vis[k] if @layer_vis.key?(k)
+      @layer_vis[k] = layer_visible?(layer)
+    end
+
+    def layer_visible?(layer)
       return false unless layer.visible?
       # Pastas de tags (SketchUp 2021+): uma pasta oculta esconde as tags de dentro.
       folder = layer.respond_to?(:folder) ? layer.folder : nil
@@ -267,41 +275,20 @@ module BlenditSU
       mat = face.material || inherited || face.back_material
       mid = material_id(mat)
 
-      mesh = face.mesh(0)
-      pts = mesh.points.map { |p| p.transform(tr) }
-      return if pts.empty?
-
-      mirrored = mirrored?(tr)
-      n = xform_normal(face.normal, tr, mirrored)
-
-      # Arestas suavizadas (cilindros, curvas, terreno): normal média por vértice,
-      # para a superfície sair lisa no render em vez de facetada.
-      normals = nil
-      if face.edges.any? { |ed| ed.smooth? || ed.soft? }
-        by_pos = {}
-        face.vertices.each { |vx| by_pos[pos_key(vx.position)] = vx }
-        normals = mesh.points.map do |p|
-          vx = by_pos[pos_key(p)]
-          vx ? xform_normal(smooth_normal(face, vx), tr, mirrored) : n
-        end
-      end
-
-      flat = pts.map { |p| [p.x.to_f, p.y.to_f, p.z.to_f] }
-      nrms = if normals
-               normals.map { |m| [m.x.to_f, m.y.to_f, m.z.to_f] }
+      lpts, lnormal, lnormals, ltris = local_geom(face)
+      return if lpts.empty?
+      xf = xform_of(tr)
+      mirrored = xf[:mirrored]
+      # Só contas em Ruby puro daqui para baixo: nada de criar objetos da API
+      # do SketchUp por vértice (é o que deixava a exportação lenta).
+      flat = lpts.map { |p| xf_point(xf, p) }
+      n = xf_normal(xf, lnormal)
+      nrms = if lnormals
+               lnormals.map { |v| v ? xf_normal(xf, v) : n }
              else
-               Array.new(flat.length, [n.x.to_f, n.y.to_f, n.z.to_f])
+               Array.new(flat.length, n)
              end
-      tris = []
-      mesh.polygons.each do |poly|
-        idx = poly.map { |i| i.abs - 1 }
-        # A face.mesh já entrega triângulos; por segurança, abre em leque.
-        (1...(idx.length - 1)).each do |k|
-          tri = [idx[0], idx[k], idx[k + 1]]
-          tri = [tri[0], tri[2], tri[1]] if mirrored
-          tris << tri
-        end
-      end
+      tris = mirrored ? ltris.map { |t| [t[0], t[2], t[1]] } : ltris
 
       unless clips.empty?
         vp = []
@@ -321,7 +308,7 @@ module BlenditSU
 
       bucket_for(key, mid).add_smooth(flat, nrms, tris)
       @faces += 1
-      track_ground(face, pts, n)
+      track_ground(face, flat, n)
     end
 
     def bucket_for(key, mid)
@@ -352,37 +339,133 @@ module BlenditSU
       n
     end
 
-    def pos_key(p)
-      [(p.x * 1000).round, (p.y * 1000).round, (p.z * 1000).round]
-    end
-
-    # Média das normais das faces ligadas a `face` por arestas suaves que tocam o
-    # vértice - o mesmo critério visual do SketchUp.
-    def smooth_normal(face, vertex)
-      seen = { face => true }
-      queue = [face]
-      sum = Geom::Vector3d.new(0, 0, 0)
-      until queue.empty?
-        f = queue.pop
-        sum += f.normal
-        vertex.edges.each do |ed|
-          next unless (ed.smooth? || ed.soft?) && ed.used_by?(f)
-          ed.faces.each do |g|
-            next if seen[g]
-            seen[g] = true
-            queue << g
+    # Geometria local de uma face, calculada uma vez e reaproveitada em todas as
+    # cópias do mesmo componente (cada vaso, cada ripa do berço...). Inclui as
+    # normais suavizadas: arestas suaves (cilindros, cortinas, almofadas) saem
+    # lisas no render em vez de facetadas.
+    def local_geom(face)
+      @geom_cache ||= {}
+      @geom_cache[ent_key(face)] ||= begin
+        mesh = face.mesh(0)
+        mpts = mesh.points
+        tris = []
+        mesh.polygons.each do |poly|
+          idx = poly.map { |i| i.abs - 1 }
+          # A face.mesh já entrega triângulos; por segurança, abre em leque.
+          (1...(idx.length - 1)).each { |k| tris << [idx[0], idx[k], idx[k + 1]] }
+        end
+        lnormals = nil
+        if face.edges.any? { |ed| ed.smooth? || ed.soft? }
+          by_pos = {}
+          face.vertices.each { |vx| by_pos[pos_key(vx.position)] = vx }
+          lnormals = mpts.map do |p|
+            vx = by_pos[pos_key(p)]
+            vx ? vec3(vertex_normal(vx, face)) : nil
           end
         end
+        [mpts.map { |p| [p.x.to_f, p.y.to_f, p.z.to_f] }, vec3(face.normal), lnormals, tris]
       end
-      sum.length > 0 ? sum.normalize : face.normal
+    end
+
+    def vec3(v)
+      [v.x.to_f, v.y.to_f, v.z.to_f]
+    end
+
+    # Parte linear (colunas a, b, c) + translação t de uma transformação, e a
+    # matriz de cofatores para as normais (vale com escala não uniforme e
+    # espelhamento - igual a transformar dois vetores do plano e cruzar).
+    # Guarda a última: as faces de um mesmo grupo vêm em sequência.
+    def xform_of(tr)
+      return @xf_last if @xf_tr.equal?(tr)
+      o = Geom::Point3d.new(0, 0, 0).transform(tr)
+      t = vec3(o)
+      a = vec3(Geom::Point3d.new(1, 0, 0).transform(tr)).each_with_index.map { |v, i| v - t[i] }
+      b = vec3(Geom::Point3d.new(0, 1, 0).transform(tr)).each_with_index.map { |v, i| v - t[i] }
+      c = vec3(Geom::Point3d.new(0, 0, 1).transform(tr)).each_with_index.map { |v, i| v - t[i] }
+      bc = cross3(b, c)
+      ca = cross3(c, a)
+      ab = cross3(a, b)
+      det = a[0] * bc[0] + a[1] * bc[1] + a[2] * bc[2]
+      @xf_tr = tr
+      @xf_last = { a: a, b: b, c: c, t: t, bc: bc, ca: ca, ab: ab, mirrored: det < 0 }
+    end
+
+    def cross3(u, v)
+      [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
+    end
+
+    def xf_point(xf, p)
+      a = xf[:a]; b = xf[:b]; c = xf[:c]; t = xf[:t]
+      x = p[0]; y = p[1]; z = p[2]
+      [a[0] * x + b[0] * y + c[0] * z + t[0],
+       a[1] * x + b[1] * y + c[1] * z + t[1],
+       a[2] * x + b[2] * y + c[2] * z + t[2]]
+    end
+
+    def xf_normal(xf, nv)
+      p = xf[:bc]; q = xf[:ca]; r = xf[:ab]
+      x = nv[0]; y = nv[1]; z = nv[2]
+      v = [p[0] * x + q[0] * y + r[0] * z,
+           p[1] * x + q[1] * y + r[1] * z,
+           p[2] * x + q[2] * y + r[2] * z]
+      v = v.map(&:-@) if xf[:mirrored]
+      l = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+      l > 0 ? [v[0] / l, v[1] / l, v[2] / l] : [0.0, 0.0, 1.0]
+    end
+
+    def ent_key(e)
+      e.respond_to?(:entityID) ? e.entityID : e.object_id
+    end
+
+    # Normal suavizada de `face` no vértice `vx`: média das faces ligadas a ela
+    # por arestas suaves em volta do vértice (o mesmo critério do SketchUp).
+    # Calculada uma vez por vértice para todas as faces em volta dele.
+    def vertex_normal(vx, face)
+      @vnorm_cache ||= {}
+      table = (@vnorm_cache[ent_key(vx)] ||= smooth_groups(vx))
+      table[ent_key(face)] || face.normal
+    end
+
+    def smooth_groups(vx)
+      edges = vx.edges
+      faces = edges.flat_map(&:faces).uniq
+      group_of = {}
+      out = {}
+      faces.each do |f0|
+        next if group_of[ent_key(f0)]
+        group = []
+        queue = [f0]
+        group_of[ent_key(f0)] = true
+        until queue.empty?
+          f = queue.pop
+          group << f
+          edges.each do |ed|
+            next unless (ed.smooth? || ed.soft?) && ed.used_by?(f)
+            ed.faces.each do |g|
+              next if group_of[ent_key(g)]
+              group_of[ent_key(g)] = true
+              queue << g
+            end
+          end
+        end
+        sum = Geom::Vector3d.new(0, 0, 0)
+        group.each { |g| sum += g.normal }
+        nn = sum.length > 0 ? sum.normalize : f0.normal
+        group.each { |g| out[ent_key(g)] = nn }
+      end
+      out
+    end
+
+    def pos_key(p)
+      [(p.x * 1000).round, (p.y * 1000).round, (p.z * 1000).round]
     end
 
     # Heurística de "terreno próprio": faces horizontais grandes na cota mais baixa.
     # Se o modelo já tem terreno, o Blendit não cria o chão artificial (evita
     # duas superfícies brigando no mesmo lugar).
     def track_ground(face, pts, n)
-      return unless n.z.abs > 0.98
-      z = pts.map(&:z).min.to_f
+      return unless n[2].abs > 0.98
+      z = pts.map { |q| q[2] }.min.to_f
       area = face.area.to_f # área local; boa o bastante para a heurística
       if z < @min_z - 1.0
         @min_z = z

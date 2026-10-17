@@ -1,5 +1,5 @@
 {
-  "versao": "0.3.0",
+  "versao": "0.3.1",
   "rbz": "https://raw.githubusercontent.com/joaopedromilok-lab/blendit/main/sketchup/release/blendit_sketchup.rbz",
-  "novidades": "- Biblioteca de materiais ampliada: 157 texturas reais (mármores, travertinos, granitos, porcelanatos, pastilhas, granilite, pisos de madeira, MDF e lâminas, palhinha, paredes, área externa, tecidos e couro).\n- Busca na biblioteca e botão \"Baixar tudo\" para usar sem internet.\n- Nova aba \"Minhas texturas\": adicione imagens de catálogos de fabricantes ou fotos de amostras, com o tamanho real da peça e o acabamento."
+  "novidades": "- Importar catálogo de fabricante de uma vez: aponte a pasta ou o .zip de texturas e o plugin lê nome, medida e acabamento do nome de cada arquivo (ex.: CALACATA ORO 90X90 POL.jpg). Antes de importar, aparece uma lista para revisar; o que não tiver medida fica em laranja.\n- Subpastas do catálogo viram coleções (ex.: Portobello / Linha Mármores)."
 }

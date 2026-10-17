@@ -438,6 +438,160 @@ module BlenditSU
                     "minha:#{item['id']}")
     end
 
+
+    # ------------------------------------------------------------- importação em lote
+    IMG_EXT = %w[.jpg .jpeg .png .bmp .tif .tiff].freeze
+    MAX_LOTE = 500
+
+    # Palavras de acabamento no nome do arquivo (sem acento, minúsculas).
+    ACAB_PALAVRAS = [
+      ['Polido / brilhante', %w[pol polido polida polish polished lux lustrado brilhante gloss glossy lap lappato]],
+      ['Acetinado', %w[acet acetinado acetinada satin satinado sat soft]],
+      ['Fosco', %w[nat natural fosco fosca mate matte mat ext externo externa ad antiderrapante rustico rustica bold]]
+    ].freeze
+
+    # Lê nome, medida e acabamento do nome do arquivo.
+    #   "CALACATA ORO 90X90 POL.jpg"  -> Calacata Oro, 90 x 90 cm, Polido
+    #   "cimenticio_60x120_nat.png"   -> Cimenticio, 60 x 120 cm, Fosco
+    #   "Freijo Puro.jpg"             -> Freijo Puro, sem medida (fica para revisar)
+    # Medidas acima de 300 nos dois lados são lidas como milímetros (1200x1200 -> 120 x 120 cm).
+    def self.analisar_nome(arquivo)
+      base = File.basename(arquivo, '.*')
+      txt = base.tr('_', ' ').gsub(/\s+/, ' ').strip
+      w = h = nil
+      if (m = txt.match(/(\d+(?:[.,]\d+)?)\s*(?:cm|mm)?\s*[xX×*]\s*(\d+(?:[.,]\d+)?)\s*(cm|mm)?/))
+        w = m[1].tr(',', '.').to_f
+        h = m[2].tr(',', '.').to_f
+        mm = m[3].to_s.downcase == 'mm' || m[0].downcase.include?('mm') || (w > 300 && h > 300)
+        w /= 10.0 if mm
+        h /= 10.0 if mm
+        txt = txt.sub(m[0], ' ')
+      end
+      plain = txt.unicode_normalize(:nfkd).gsub(/[^\x00-\x7F]/, '').downcase
+      acab = nil
+      ACAB_PALAVRAS.each do |nome_acab, palavras|
+        palavras.each do |pw|
+          next unless plain =~ /(?<![a-z0-9])#{Regexp.escape(pw)}(?![a-z0-9])/
+          acab ||= nome_acab
+          # "natural" também é nome de cor/padrão (Carvalho Natural): marca o
+          # acabamento mas fica no nome.
+          next if pw == 'natural'
+          txt = txt.gsub(/(?<![[:alnum:]])#{Regexp.escape(pw)}(?![[:alnum:]])/i, ' ')
+        end
+      end
+      nome = txt.gsub(/[-.]+/, ' ').gsub(/\s+/, ' ').strip
+      siglas = %w[HD MDF MDP PVC SPC LVT LED UV]
+      todo_maiusculo = nome !~ /[[:lower:]]/
+      nome = nome.split(' ').map do |p|
+        next p if siglas.include?(p.upcase) && p == p.upcase
+        todo_maiusculo || (p =~ /\A[[:upper:]\d]+\z/ && p.length > 3) ? p.capitalize : p
+      end.join(' ')
+      nome = nome.sub(/\A[[:lower:]]/) { |c| c.upcase }
+      nome = base if nome.empty?
+      ok = w && h && w > 0 && h > 0 && w <= 2000 && h <= 2000
+      { 'nome' => nome, 'largura_cm' => ok ? w.round(1) : nil, 'altura_cm' => ok ? h.round(1) : nil,
+        'acabamento' => acab || 'Acetinado', 'acabamento_lido' => !acab.nil?, 'medida_lida' => !!ok }
+    end
+
+    # Todas as imagens de uma pasta (com subpastas). -> [[caminho, subpasta_relativa], ...]
+    def self.imagens_da_pasta(raiz)
+      raiz = raiz.tr('\\', '/')
+      Dir.glob(File.join(raiz, '**', '*')).select do |f|
+        File.file?(f) && IMG_EXT.include?(File.extname(f).downcase) && File.basename(f) !~ /\A[._]/
+      end.sort.first(MAX_LOTE).map do |f|
+        rel = File.dirname(f)[raiz.length..-1].to_s.sub(%r{\A/}, '')
+        [f, rel]
+      end
+    end
+
+    # Extrai as imagens de um .zip (mantendo as subpastas). -> pasta onde ficaram
+    def self.extrair_zip(zip_path)
+      dest = File.join(meu_dir, '_importando', Time.now.strftime('%Y%m%d%H%M%S'))
+      FileUtils.mkdir_p(dest)
+      data = File.binread(zip_path)
+      eocd = data.rindex("PK\x05\x06".b)
+      raise 'Arquivo .zip inválido.' unless eocd
+      count = data[eocd + 10, 2].unpack1('v')
+      pos = data[eocd + 16, 4].unpack1('V')
+      n = 0
+      count.times do
+        f = data[pos, 46].unpack('VvvvvvvVVVvvvvvVV')
+        raise 'Arquivo .zip corrompido.' unless f[0] == 0x02014b50
+        flags, method, csize, nlen, xlen, clen, lho = f[3], f[4], f[8], f[10], f[11], f[12], f[16]
+        name = data[pos + 46, nlen]
+        name = flags & 0x800 != 0 ? name.force_encoding('UTF-8') : name.force_encoding('IBM437').encode('UTF-8')
+        pos += 46 + nlen + xlen + clen
+        next if name.end_with?('/') || name.include?('__MACOSX')
+        next unless IMG_EXT.include?(File.extname(name).downcase)
+        break if n >= MAX_LOTE
+        rel = name.split('/').reject { |x| x.empty? || x == '..' || x == '.' }
+        next if rel.empty?
+        lnlen, lxlen = data[lho + 26, 4].unpack('vv')
+        raw = data[lho + 30 + lnlen + lxlen, csize]
+        body = case method
+               when 0 then raw
+               when 8 then Zlib::Inflate.new(-Zlib::MAX_WBITS).inflate(raw)
+               else next
+               end
+        out = File.join(dest, *rel)
+        FileUtils.mkdir_p(File.dirname(out))
+        File.binwrite(out, body)
+        n += 1
+      end
+      dest
+    end
+
+    # Monta a lista de revisão. -> { 'fabricante' => ..., 'itens' => [...] }
+    def self.preparar_lote(raiz, fabricante)
+      existentes = minhas.map { |x| [x['fabricante'].to_s.downcase, x['nome'].to_s.downcase] }
+      itens = imagens_da_pasta(raiz).map do |caminho, sub|
+        a = analisar_nome(caminho)
+        colecao = sub.split('/').last.to_s
+        fab_item = colecao.empty? ? fabricante : "#{fabricante} / #{colecao}"
+        a.merge('origem' => caminho, 'colecao' => colecao,
+                'arquivo' => File.basename(caminho),
+                'repetida' => existentes.include?([fab_item.downcase, a['nome'].downcase]),
+                'tamanho_kb' => (File.size(caminho) / 1024.0).round)
+      end
+      { 'fabricante' => fabricante, 'itens' => itens }
+    end
+
+    # Importa os itens revisados. -> quantidade importada
+    def self.importar_lote(fabricante, itens)
+      FileUtils.mkdir_p(meu_dir)
+      lista = minhas
+      novos = 0
+      itens.each_with_index do |it, i|
+        next unless it['incluir']
+        w = it['largura_cm'].to_s.tr(',', '.').to_f
+        h = it['altura_cm'].to_s.tr(',', '.').to_f
+        next if w <= 0 || h <= 0 || !File.file?(it['origem'].to_s)
+        fab = fabricante.to_s.strip
+        fab = "#{fab} / #{it['colecao']}" unless it['colecao'].to_s.empty?
+        id = "#{slug(fab.empty? ? 'minhas' : fab)}__#{slug(it['nome'])}_#{Time.now.strftime('%Y%m%d%H%M%S')}#{i}"
+        dest = File.join(meu_dir, "#{id}#{File.extname(it['origem']).downcase}")
+        FileUtils.cp(it['origem'], dest)
+        lista << { 'id' => id, 'nome' => it['nome'].to_s.strip, 'fabricante' => fab, 'largura_cm' => w,
+                   'altura_cm' => h, 'acabamento' => it['acabamento'].to_s, 'arquivo' => File.basename(dest) }
+        novos += 1
+      end
+      salvar_minhas(lista)
+      FileUtils.rm_rf(File.join(meu_dir, '_importando'))
+      novos
+    end
+
+    def self.lote_iniciar(dlg, raiz, sugestao)
+      fab = UI.inputbox(['Fabricante (vale para todo o lote)'], [sugestao], 'Blendit - Importar catálogo')
+      return unless fab
+      lote = preparar_lote(raiz, fab[0].to_s.strip)
+      if lote['itens'].empty?
+        dlg.execute_script("status(#{JSON.generate('Não achei imagens (JPG, PNG, BMP ou TIF) aí.')})")
+        return
+      end
+      lote['itens'].each { |it| it['src'] = 'file:///' + it['origem'].tr('\\', '/') }
+      dlg.execute_script("mostrarLote(#{JSON.generate(lote)})")
+    end
+
     # ------------------------------------------------------------- galeria
     def self.aplicar(dlg, model, mat, nome)
       model.materials.current = mat
@@ -501,6 +655,31 @@ module BlenditSU
         end
       end
       dlg.add_action_callback('baixar_tudo') { |_c| baixar_tudo(dlg) }
+      dlg.add_action_callback('lote_pasta') do |_c|
+        dir = UI.select_directory(title: 'Pasta com as texturas do fabricante')
+        lote_iniciar(dlg, dir, File.basename(dir).tr('_', ' ')) if dir
+      end
+      dlg.add_action_callback('lote_zip') do |_c|
+        zip = UI.openpanel('Pacote de texturas (.zip)', nil, 'Arquivo ZIP|*.zip||')
+        if zip
+          begin
+            dlg.execute_script("status(#{JSON.generate('Abrindo o .zip...')})")
+            lote_iniciar(dlg, extrair_zip(zip), File.basename(zip, '.*').tr('_-', '  ').strip)
+          rescue StandardError => e
+            dlg.execute_script("status(#{JSON.generate("Não deu para abrir o .zip: #{e.message}")})")
+          end
+        end
+      end
+      dlg.add_action_callback('lote_confirmar') do |_c, dados|
+        begin
+          d = dados.is_a?(String) ? JSON.parse(dados) : dados
+          n = importar_lote(d['fabricante'], d['itens'])
+          enviar_minhas(dlg)
+          dlg.execute_script("fecharLote(); status(#{JSON.generate("#{n} textura(s) importada(s) para Minhas texturas.")}, true)")
+        rescue StandardError => e
+          dlg.execute_script("status(#{JSON.generate("Erro ao importar: #{e.message}")})")
+        end
+      end
       dlg.show
       @dialog = dlg
     end
@@ -583,6 +762,17 @@ module BlenditSU
           .vazio{color:var(--mut);padding:18px 0}
           footer{color:var(--mut);font-size:11px;padding:0 18px 16px}
           .hide{display:none}
+          .lote{background:var(--card);border:1px solid var(--acc);border-radius:8px;padding:12px;margin:12px 0}
+          .lote table{width:100%;border-collapse:collapse;font-size:12px}
+          .lote th{text-align:left;color:var(--mut);font-weight:600;padding:4px;border-bottom:1px solid var(--line)}
+          .lote td{padding:4px;border-bottom:1px solid var(--line);vertical-align:middle}
+          .lote td img{width:44px;height:44px;object-fit:cover;border-radius:4px;background:#e9e6df;display:block}
+          .lote input[type=text]{width:100%;padding:4px 6px}
+          .lote input.n{width:64px}
+          .lote tr.falta td{background:#fff4e5}
+          .lote tr.falta input.n{border-color:#d9822b}
+          .lote .tag{font-size:11px;color:#a35c00}
+          .lote .sc{max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:6px;margin:8px 0}
         </style></head><body>
         <header>
           <div class="tabs"><button class="tab on" id="t1" onclick="aba(1)">Biblioteca (#{CATALOGO.length})</button>
@@ -606,6 +796,12 @@ module BlenditSU
             <div class="row" style="margin-top:10px"><button class="btn" onclick="adicionar()">Adicionar às minhas texturas</button>
             <span style="color:var(--mut);font-size:12px">Largura e altura = o tamanho que a imagem representa (uma peça, ou o trecho da foto).</span></div>
           </div>
+          <div class="row" style="margin:4px 0 0">
+            <button class="btn sec" onclick="sketchup.lote_pasta()">Importar catálogo (pasta)...</button>
+            <button class="btn sec" onclick="sketchup.lote_zip()">Importar catálogo (.zip)...</button>
+            <span style="color:var(--mut);font-size:12px">Nome, medida e acabamento são lidos do nome de cada arquivo (ex.: CALACATA 90X90 POL.jpg).</span>
+          </div>
+          <div id="lote" class="lote hide"></div>
           <div id="minhas"></div>
         </main>
         <footer id="rod">Biblioteca: texturas do Poly Haven e do ambientCG, licença CC0 - uso livre, inclusive comercial. Minhas texturas ficam só neste computador.</footer>
@@ -660,6 +856,54 @@ module BlenditSU
             });
             box.innerHTML = html;
           }
+          var LOTE = null;
+          function mostrarLote(l){
+            LOTE = l; aba(2);
+            var falta = l.itens.filter(function(i){ return !i.medida_lida; }).length;
+            var rep = l.itens.filter(function(i){ return i.repetida; }).length;
+            var acs = ['Fosco','Acetinado','Polido / brilhante'];
+            var h = '<div class="row"><b>' + l.itens.length + ' imagens encontradas</b> &nbsp; Fabricante: <input type="text" id="l_fab" value="' + esc(l.fabricante) + '" style="width:220px">' +
+              (falta ? ' <span class="tag">' + falta + ' sem medida no nome - preencha as linhas em laranja</span>' : ' <span style="color:var(--acc)">todas com medida</span>') +
+              (rep ? ' <span class="tag">&middot; ' + rep + ' já existem (desmarcadas)</span>' : '') + '</div>' +
+              '<div class="row" style="margin-top:6px;font-size:12px;color:var(--mut)">Preencher vazios: <input type="text" class="n" id="l_w" placeholder="larg"> x <input type="text" class="n" id="l_h" placeholder="alt"> cm ' +
+              '<button class="btn sec" onclick="preencher()">Aplicar</button></div>' +
+              '<div class="sc"><table><tr><th></th><th>Importar</th><th>Nome</th><th>Coleção</th><th>Larg. (cm)</th><th>Alt. (cm)</th><th>Acabamento</th><th>Arquivo</th></tr>';
+            l.itens.forEach(function(it, i){
+              if (it.incluir === undefined) it.incluir = !it.repetida;
+              var opts = acs.map(function(a){ return '<option' + (a === it.acabamento ? ' selected' : '') + '>' + a + '</option>'; }).join('');
+              h += '<tr id="lr' + i + '" class="' + (it.medida_lida ? '' : 'falta') + '">' +
+                '<td><img loading="lazy" src="' + encodeURI(it.src) + '"></td>' +
+                '<td><input type="checkbox" ' + (it.incluir ? 'checked' : '') + ' onchange="LOTE.itens[' + i + '].incluir=this.checked"></td>' +
+                '<td><input type="text" value="' + esc(it.nome) + '" oninput="LOTE.itens[' + i + '].nome=this.value"></td>' +
+                '<td>' + esc(it.colecao || '') + '</td>' +
+                '<td><input type="text" class="n" value="' + (it.largura_cm || '') + '" oninput="setW(' + i + ',this.value)"></td>' +
+                '<td><input type="text" class="n" value="' + (it.altura_cm || '') + '" oninput="setH(' + i + ',this.value)"></td>' +
+                '<td><select onchange="LOTE.itens[' + i + '].acabamento=this.value">' + opts + '</select></td>' +
+                '<td style="color:var(--mut)">' + esc(it.arquivo) + '</td></tr>';
+            });
+            h += '</table></div><div class="row"><button class="btn" onclick="confirmarLote()">Importar selecionadas</button>' +
+                 '<button class="btn sec" onclick="fecharLote()">Cancelar</button>' +
+                 '<span style="color:var(--mut);font-size:12px">Linhas sem medida não são importadas.</span></div>';
+            var box = document.getElementById('lote'); box.innerHTML = h; box.classList.remove('hide');
+            status(l.itens.length + ' imagens prontas para revisar.', true);
+          }
+          function marca(i){ var it = LOTE.itens[i]; var ok = parseFloat(String(it.largura_cm).replace(',','.')) > 0 && parseFloat(String(it.altura_cm).replace(',','.')) > 0;
+            document.getElementById('lr' + i).className = ok ? '' : 'falta'; }
+          function setW(i, v){ LOTE.itens[i].largura_cm = v; marca(i); }
+          function setH(i, v){ LOTE.itens[i].altura_cm = v; marca(i); }
+          function preencher(){
+            var w = document.getElementById('l_w').value, h = document.getElementById('l_h').value;
+            LOTE.itens.forEach(function(it){ if (!it.largura_cm) it.largura_cm = w; if (!it.altura_cm) it.altura_cm = h; });
+            LOTE.fabricante = document.getElementById('l_fab').value; mostrarLote(LOTE);
+          }
+          function confirmarLote(){
+            LOTE.fabricante = document.getElementById('l_fab').value;
+            var n = LOTE.itens.filter(function(it){ return it.incluir && parseFloat(String(it.largura_cm).replace(',','.')) > 0 && parseFloat(String(it.altura_cm).replace(',','.')) > 0; }).length;
+            if (!n){ status('Nenhuma linha marcada com medida preenchida.'); return; }
+            status('Importando ' + n + ' textura(s)...');
+            sketchup.lote_confirmar(JSON.stringify({fabricante: LOTE.fabricante, itens: LOTE.itens}));
+          }
+          function fecharLote(){ LOTE = null; var b = document.getElementById('lote'); b.innerHTML = ''; b.classList.add('hide'); }
           window.addEventListener('load', function(){ if (window.sketchup) sketchup.pronto(); });
         </script></body></html>
       HTML

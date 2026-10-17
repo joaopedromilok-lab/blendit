@@ -1,3 +1,2 @@
-- Biblioteca de materiais ampliada: 157 texturas reais (mármores, travertinos, granitos, porcelanatos, pastilhas, granilite, pisos de madeira, MDF e lâminas, palhinha, paredes, área externa, tecidos e couro).
-- Busca na biblioteca e botão "Baixar tudo" para usar sem internet.
-- Nova aba "Minhas texturas": adicione imagens de catálogos de fabricantes ou fotos de amostras, com o tamanho real da peça e o acabamento.
+- Importar catálogo de fabricante de uma vez: aponte a pasta ou o .zip de texturas e o plugin lê nome, medida e acabamento do nome de cada arquivo (ex.: CALACATA ORO 90X90 POL.jpg). Antes de importar, aparece uma lista para revisar; o que não tiver medida fica em laranja.
+- Subpastas do catálogo viram coleções (ex.: Portobello / Linha Mármores).

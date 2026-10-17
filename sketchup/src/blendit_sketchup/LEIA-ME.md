@@ -27,7 +27,8 @@ está o `blender.exe`.
 | **Abrir no Blender** | Abre a cena no Blender para compor o enquadramento e trocar o estilo ao vivo (tecla **N** mostra o painel, **Enter** captura, **F10** mostra a interface completa). |
 | **Renderizar todas as cenas** | Uma imagem por cena (aba) do modelo, uma de cada vez, e (se quiser) uma prancha em PDF com carimbo. Respeita as etiquetas visíveis de cada cena. |
 | **Estudo de insolação** | 9 imagens no estilo Estudo de sombras (21/06, 21/03 e 21/12 às 9h, 12h e 15h) + prancha em PDF. Usa a geolocalização do modelo. |
-| **Biblioteca de materiais** | Galeria com 35 materiais de textura real (porcelanatos, madeiras, pedras, tijolos, tecidos...) no tamanho real, com relevo no render. Baixa cada textura só na primeira vez. |
+| **Biblioteca de materiais** | Galeria com 157 materiais de textura real (mármores, travertinos, granitos, porcelanatos, pastilhas, granilite, pisos de madeira, MDF e lâminas, palhinha, paredes, área externa, tecidos e couro), com busca, no tamanho real e com relevo no render. Baixa cada textura só na primeira vez, ou todas de uma vez com **Baixar tudo**. Texturas do Poly Haven e do ambientCG (CC0). |
+| **Minhas texturas** | Aba da biblioteca para adicionar imagens de catálogos de fabricantes ou fotos de amostras, informando o tamanho real da peça (cm) e o acabamento. Ficam só no computador (`%APPDATA%\BlenditSketchUp\minhas_texturas`). |
 | **Montar prancha com imagens de uma pasta** | Prancha em PDF (A4 a A1) com até 12 imagens de uma pasta. |
 | **Iluminação: Dia / Noite** | Noite apaga o sol e o céu - só as luminárias iluminam. |
 | **Inverter lado do corte** | Se o corte sair do lado errado, marque esta opção. |
@@ -70,7 +71,8 @@ Mármore, Grama...) ganham textura procedural automática quando não têm image
   enquadramento pode diferir um pouco - ajuste no "Abrir no Blender".
 - As luminárias são reconhecidas pelo nome; um componente com nome genérico
   ("Componente#12") não acende.
-- A biblioteca de materiais precisa de internet na primeira vez de cada textura.
+- A biblioteca de materiais precisa de internet na primeira vez de cada textura (ou use **Baixar tudo** uma vez).
+- Nas texturas do ambientCG o tamanho real é estimado (ex.: mármore 2 m, pastilha 60 cm); ajuste em Materiais > Editar se precisar.
 
 ## Para desenvolvedores
 

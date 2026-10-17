@@ -1,5 +1,5 @@
 {
-  "versao": "0.2.1",
+  "versao": "0.3.0",
   "rbz": "https://raw.githubusercontent.com/joaopedromilok-lab/blendit/main/sketchup/release/blendit_sketchup.rbz",
-  "novidades": "- Atualização automática: o plugin avisa quando tem versão nova.\n- Luminárias viram luzes; modo Noite.\n- Corte humanizado pelo plano de corte ativo.\n- Estudo de insolação e pranchas em PDF com carimbo.\n- Biblioteca de materiais com texturas reais."
+  "novidades": "- Biblioteca de materiais ampliada: 157 texturas reais (mármores, travertinos, granitos, porcelanatos, pastilhas, granilite, pisos de madeira, MDF e lâminas, palhinha, paredes, área externa, tecidos e couro).\n- Busca na biblioteca e botão \"Baixar tudo\" para usar sem internet.\n- Nova aba \"Minhas texturas\": adicione imagens de catálogos de fabricantes ou fotos de amostras, com o tamanho real da peça e o acabamento."
 }

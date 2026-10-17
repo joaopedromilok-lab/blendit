@@ -1,5 +1,3 @@
-- Atualização automática: o plugin avisa quando tem versão nova.
-- Luminárias viram luzes; modo Noite.
-- Corte humanizado pelo plano de corte ativo.
-- Estudo de insolação e pranchas em PDF com carimbo.
-- Biblioteca de materiais com texturas reais.
+- Biblioteca de materiais ampliada: 157 texturas reais (mármores, travertinos, granitos, porcelanatos, pastilhas, granilite, pisos de madeira, MDF e lâminas, palhinha, paredes, área externa, tecidos e couro).
+- Busca na biblioteca e botão "Baixar tudo" para usar sem internet.
+- Nova aba "Minhas texturas": adicione imagens de catálogos de fabricantes ou fotos de amostras, com o tamanho real da peça e o acabamento.

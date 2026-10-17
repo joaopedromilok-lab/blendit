@@ -89,6 +89,8 @@ module Geom
     def initialize(mn, mx)
       @mn = mn; @mx = mx
     end
+    def min = Geom::Point3d.new(*@mn)
+    def max = Geom::Point3d.new(*@mx)
     def width = @mx[0] - @mn[0]
     def height = @mx[1] - @mn[1]
     def corner(i)
@@ -178,6 +180,11 @@ module Sketchup
       s = Geom::Vector3d.new
       (1...(p.length - 1)).each { |k| s += (p[k] - p[0]).cross(p[k + 1] - p[0]) }
       s.length / 2
+    end
+    def bounds
+      ps = @vertices.map(&:position)
+      Geom::BoundingBox.new([ps.map(&:x).min, ps.map(&:y).min, ps.map(&:z).min],
+                            [ps.map(&:x).max, ps.map(&:y).max, ps.map(&:z).max])
     end
     def mesh(_flags = 0)
       n = @vertices.length
@@ -311,5 +318,21 @@ module Sketchup
       @pages = Pages.new; @bounds = bounds
     end
     def bounds = @bounds
+    # Materiais usados nas faces (para as ferramentas que listam model.materials).
+    def materials
+      found = []
+      walk = lambda do |ents, inh|
+        ents.each do |e|
+          if e.respond_to?(:definition)
+            found << e.material if e.material
+            walk.call(e.definition.entities, e.material || inh)
+          elsif e.respond_to?(:material)
+            found << e.material if e.material
+          end
+        end
+      end
+      walk.call(@entities, nil)
+      found.compact.uniq
+    end
   end
 end

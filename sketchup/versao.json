@@ -1,5 +1,5 @@
 {
-  "versao": "0.4.1",
+  "versao": "0.4.2",
   "rbz": "https://raw.githubusercontent.com/joaopedromilok-lab/blendit/main/sketchup/release/blendit_sketchup.rbz",
-  "novidades": "- Mais cara de foto: exposição e cor automáticas em ambientes internos (o render \"mede\" a cena como uma câmera antes de começar) - acabou a sala escura e alaranjada.\n- Superfícies com pequenas imperfeições (o brilho varia um pouco, como pintura e laca de verdade) e um leve brilho em volta das luzes e janelas, como numa lente real.\n- Sofás, poltronas, almofadas e puffs ganham aspecto de tecido de verdade (pelo nome do componente). Espelho, couro e veludo também saem certos pelo nome do material.\n- (0.4.0) Importar catálogo aceita .skp e .skm."
+  "novidades": "- Texturas automáticas (menu Blendit > Texturas automáticas...): o Blendit acha os materiais que são só cor - piso, madeira da marcenaria, tecido do sofá, couro, pedra da bancada, concreto - e sugere uma textura real da biblioteca para cada um. Ela confere numa lista, troca o que quiser e aplica. As cores do projeto são mantidas e dá para desfazer com Ctrl+Z.\n- (0.4.1) Exposição e cor automáticas, imperfeições nas superfícies, brilho de lente e tecido de verdade em sofás."
 }

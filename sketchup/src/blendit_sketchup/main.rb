@@ -8,6 +8,7 @@ require_relative 'exporter'
 require_relative 'texturas'
 require_relative 'atualizacao'
 require_relative 'ceus'
+require_relative 'auto_texturas'
 
 module BlenditSU
   PLUGIN_DIR = File.dirname(__FILE__).freeze
@@ -562,6 +563,7 @@ module BlenditSU
     menu.add_item(c_scenes)
     menu.add_item(c_sun)
     menu.add_item(c_lib)
+    menu.add_item('Texturas automáticas...') { AutoTexturas.show }
     menu.add_item('Montar prancha com imagens de uma pasta...') { board_from_folder }
     menu.add_separator
     styles = menu.add_submenu('Estilo')

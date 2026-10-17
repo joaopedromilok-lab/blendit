@@ -105,7 +105,7 @@ module BlenditSU
           was = @in_light
           @in_light ||= light_kind(e, defn)
           was_c = @in_curtain
-          @in_curtain ||= curtain_kind(e, defn)
+          @in_curtain ||= curtain_kind(e, defn) || upholstery_kind(e, defn)
           child_mat = e.material || inherited
           walk(defn.entities, child_tr, child_mat, child_key, depth + 1, clips)
           @in_light = was
@@ -499,7 +499,7 @@ module BlenditSU
             end
       if cortina
         rec['appearance_class'] = cortina
-        rec['name'] = "#{rec['name']} (cortina)"
+        rec['name'] = "#{rec['name']} (#{cortina == 'estofado' ? 'estofado' : 'cortina'})"
       end
       @materials[k] = rec
       @mat_order << rec
@@ -515,6 +515,15 @@ module BlenditSU
       names = [inst.name.to_s, defn.name.to_s].join(' ')
       return nil if names !~ CURTAIN_RE || names =~ NOT_CURTAIN_RE
       names =~ SHEER_RE ? 'cortina_voil' : 'cortina'
+    end
+
+    # Sofás, poltronas, almofadas, puffs, cabeceiras: o tecido ganha o brilho
+    # suave de tecido de verdade no render (mesmo com nome de material genérico).
+    ESTOFADO_RE = /sof[aá]|poltrona|almofad|puff|pufe|estofad|cabeceira|couch|armchair|cushion|pillow/i.freeze
+
+    def upholstery_kind(inst, defn)
+      names = [inst.name.to_s, defn.name.to_s].join(' ')
+      names =~ ESTOFADO_RE ? 'estofado' : nil
     end
 
     # Peças rígidas dentro da cortina (varão, trilho, argolas) não viram tecido.

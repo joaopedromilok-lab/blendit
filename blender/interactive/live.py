@@ -729,6 +729,11 @@ def _apply_mode(mode):
         apply_interior(_SPEC)
     except Exception:
         pass
+    try:
+        from blender.pipeline.realism import apply_realism
+        apply_realism(_SPEC)
+    except Exception:
+        pass
     try:                                   # presets rebuilt the materials: re-bevel
         from blender.pipeline.bevel import apply_bevel
         apply_bevel(_SPEC)

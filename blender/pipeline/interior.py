@@ -130,8 +130,9 @@ def apply_interior(spec):
     mode = str(rspec.get("mode", "realistic"))
     want = rspec.get("interior", "auto")
     scene = bpy.context.scene
-    if "bir_wb_base" in scene:
-        del scene["bir_wb_base"]
+    for k in ("bir_wb_base", "bir_interior"):
+        if k in scene:
+            del scene[k]
     if mode not in LIT_MODES or want is False or str(want).lower() in ("false", "off", "0"):
         return False
     try:
@@ -197,6 +198,7 @@ def apply_interior(spec):
                           ("transparent_max_bounces", 16)):
             if hasattr(cy, attr):
                 setattr(cy, attr, max(getattr(cy, attr), val))
+    scene["bir_interior"] = 1
     print("[Blendit] interior detected: exposure +%.2f, white balance %dK, GI on"
           % (boost, wb))
     return True

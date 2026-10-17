@@ -1,5 +1,5 @@
 {
-  "versao": "0.4.0",
+  "versao": "0.4.1",
   "rbz": "https://raw.githubusercontent.com/joaopedromilok-lab/blendit/main/sketchup/release/blendit_sketchup.rbz",
-  "novidades": "- Importar catálogo agora aceita arquivos do SketchUp (.skp e .skm), como os que os fabricantes disponibilizam: a textura e o tamanho real de cada material entram em Minhas texturas, sem mexer no projeto aberto.\n- (0.3.9) Render Final ~2x mais rápido, luz do dia mais real em interiores, menus Tom da imagem e Brilho."
+  "novidades": "- Mais cara de foto: exposição e cor automáticas em ambientes internos (o render \"mede\" a cena como uma câmera antes de começar) - acabou a sala escura e alaranjada.\n- Superfícies com pequenas imperfeições (o brilho varia um pouco, como pintura e laca de verdade) e um leve brilho em volta das luzes e janelas, como numa lente real.\n- Sofás, poltronas, almofadas e puffs ganham aspecto de tecido de verdade (pelo nome do componente). Espelho, couro e veludo também saem certos pelo nome do material.\n- (0.4.0) Importar catálogo aceita .skp e .skm."
 }

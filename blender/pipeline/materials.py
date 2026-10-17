@@ -116,6 +116,18 @@ def build_material(rec, engine="CYCLES", surface="auto", base_dir=None):
 
     if fabric:
         _build_curtain(mat, nt, bsdf, out, fabric, float(rec.get("transparency", 0.0)))
+    if str(rec.get("appearance_class") or "") == "estofado" and transparency <= 0.0:
+        # Upholstery (SketchUp component named sofa/poltrona/almofada...): the
+        # soft grazing-angle sheen of cloth; untextured ones also get a weave.
+        if not bsdf.inputs["Normal"].is_linked and not (rec.get("maps") or {}).get("diffuse") \
+                and float(rec.get("metallic", 0.0)) < 0.5:
+            material_library.build_surface(nt, bsdf, "upholstery",
+                                           rec.get("base_color", [0.8, 0.8, 0.8]), roughness)
+        for name, val in (("Sheen Weight", 0.6), ("Sheen Roughness", 0.45)):
+            if name in bsdf.inputs:
+                bsdf.inputs[name].default_value = val
+        if not bsdf.inputs["Roughness"].is_linked:
+            bsdf.inputs["Roughness"].default_value = max(roughness, 0.75)
 
     emissive = rec.get("emissive")
     if emissive:

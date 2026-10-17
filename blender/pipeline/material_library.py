@@ -467,6 +467,32 @@ def _fabric(nt, bsdf, tint, roughness):
     _bump(nt, bsdf, n.outputs["Fac"], 0.3, distance=0.003)
 
 
+def _upholstery(nt, bsdf, tint, roughness):
+    """Sofa / cushion fabric: the fine weave plus 'sheen' - the soft bright rim
+    textiles get at grazing angles, the cue that reads as cloth."""
+    _fabric(nt, bsdf, tint, roughness)
+    for name, val in (("Sheen Weight", 0.6), ("Sheen Roughness", 0.45)):
+        if name in bsdf.inputs:
+            bsdf.inputs[name].default_value = val
+
+
+def _leather(nt, bsdf, tint, roughness):
+    bsdf.inputs["Base Color"].default_value = _shade(tint, 1.0)
+    bsdf.inputs["Roughness"].default_value = min(max(roughness, 0.35), 0.55)
+    vec = _proj(nt, 1.0)
+    n = nt.nodes.new("ShaderNodeTexVoronoi")
+    n.location = (-400, -300)
+    n.inputs["Scale"].default_value = 260.0            # grain
+    nt.links.new(vec, n.inputs["Vector"])
+    _bump(nt, bsdf, n.outputs["Distance"], 0.15, distance=0.002)
+
+
+def _mirror(nt, bsdf, tint, roughness):
+    bsdf.inputs["Base Color"].default_value = (0.92, 0.93, 0.93, 1.0)
+    bsdf.inputs["Metallic"].default_value = 1.0
+    bsdf.inputs["Roughness"].default_value = 0.02
+
+
 def _grass(nt, bsdf, tint, roughness):
     vec = _proj(nt, 1.0)
     n = nt.nodes.new("ShaderNodeTexNoise")
@@ -504,7 +530,11 @@ _LIBRARY = [
      _corrugated),
     (("metal", "steel", "alum", "copper", "brass", "bronze", "iron", "chrome",
       "zinc", "tin", "stainless", "metallic"), _metal),
-    (("carpet", "fabric", "textile", "rug", "upholstery", "cloth", "felt",
+    (("mirror",), _mirror),
+    (("leather",), _leather),
+    (("sofa", "couch", "cushion", "pillow", "velvet", "upholster", "armchair"),
+     _upholstery),
+    (("carpet", "fabric", "textile", "rug", "cloth", "felt",
       "acoustic"), _fabric),
     (("plaster", "stucco", "gypsum", "drywall", "plasterboard", "paint",
       "render"), _plaster),
@@ -538,7 +568,11 @@ _LIBRARY_PT = [
     (("brita", "cascalho", "pedrisco", "seixo"), _gravel),
     (("aco", "inox", "aluminio", "ferro", "cobre", "latao", "bronze", "cromado",
       "galvaniz*", "metal", "metalico", "metalica"), _metal),
-    (("carpete", "tapete", "tecido", "estofado", "cortina", "feltro", "linho"),
+    (("espelho", "espelhado", "espelhada"), _mirror),
+    (("couro", "courino", "corino"), _leather),
+    (("sofa", "almofada*", "estofado", "estofamento", "veludo", "suede", "camurca",
+      "boucle", "chenille", "poltrona", "cabeceira estofada", "puff"), _upholstery),
+    (("carpete", "tapete", "tecido", "cortina", "feltro", "linho"),
      _fabric),
     (("reboco", "gesso", "drywall", "massa corrida", "pintura", "tinta",
       "acrilica", "grafiato", "emboco"), _plaster),
@@ -583,6 +617,7 @@ SURFACES = {
     "brick": _brick, "wood": _wood, "planks": _planks, "concrete": _concrete,
     "stone": _stone, "tile": _tile, "roof_tile": _roof_tile, "metal": _metal,
     "corrugated": _corrugated, "fabric": _fabric, "grass": _grass,
+    "upholstery": _upholstery, "leather": _leather, "mirror": _mirror,
     "plaster": _plaster, "asphalt": _asphalt, "gravel": _gravel,
     "water": _water,
 }

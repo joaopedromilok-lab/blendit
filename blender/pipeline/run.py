@@ -90,6 +90,11 @@ def prepare_scene(loaded, spec):
     except Exception:
         pass
     try:
+        from .realism import apply_realism     # imperfections + lens bloom
+        apply_realism(spec)
+    except Exception:
+        pass
+    try:
         from .bevel import apply_bevel         # rounded edges (Cycles)
         apply_bevel(spec)
     except Exception:
@@ -133,6 +138,14 @@ def _render(out_path, spec):
     except Exception:
         pass
     scene = bpy.context.scene
+    if scene.get("bir_interior"):
+        # Interiors vary too much for fixed settings: meter the scene like a
+        # camera (a tiny pre-render) and set exposure + white balance from it.
+        try:
+            from .autoexpose import apply_auto
+            apply_auto(spec)
+        except Exception as e:
+            print("[Blendit] auto exposure skipped: %s" % e)
     scene.render.image_settings.file_format = "PNG"
     scene.render.filepath = out_path
     bpy.ops.render.render(write_still=True)

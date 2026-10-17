@@ -84,6 +84,11 @@ def prepare_scene(loaded, spec):
         pass
 
     setup_engine(spec)
+    try:
+        from .interior import apply_interior   # camera inside a room
+        apply_interior(spec)
+    except Exception:
+        pass
     return loaded, spec
 
 

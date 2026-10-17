@@ -16,6 +16,45 @@ def _eevee_engine_id():
     return "BLENDER_EEVEE"
 
 
+def enable_gpu(scene):
+    """Render Cycles on the graphics card when there is one (OptiX > CUDA > HIP >
+    oneAPI > Metal). Blender defaults every new scene to CPU, so without this a
+    machine with a good GPU still rendered on the processor. Session-only: the
+    user's saved preferences are not written. -> backend name or None (CPU)."""
+    try:
+        prefs = bpy.context.preferences.addons["cycles"].preferences
+    except Exception:
+        scene.cycles.device = "CPU"
+        return None
+    for backend in ("OPTIX", "CUDA", "HIP", "ONEAPI", "METAL"):
+        try:
+            prefs.compute_device_type = backend
+        except Exception:
+            continue
+        try:
+            if hasattr(prefs, "refresh_devices"):
+                prefs.refresh_devices()
+            else:
+                prefs.get_devices()
+        except Exception:
+            pass
+        gpus = [d for d in prefs.devices if d.type == backend]
+        if not gpus:
+            continue
+        for d in prefs.devices:
+            d.use = d.type == backend
+        scene.cycles.device = "GPU"
+        print("[Blendit] Cycles on GPU (%s): %s" % (backend, ", ".join(d.name for d in gpus)))
+        return backend
+    try:
+        prefs.compute_device_type = "NONE"
+    except Exception:
+        pass
+    scene.cycles.device = "CPU"
+    print("[Blendit] no supported GPU found - Cycles on CPU")
+    return None
+
+
 def setup_engine(spec):
     from .presets.registry import OSL_MODES
     rspec = spec.get("render", {})
@@ -50,5 +89,6 @@ def setup_engine(spec):
             scene.cycles.preview_samples = 8   # emission-only: converges fast
         else:
             scene.cycles.use_preview_denoising = True
+            enable_gpu(scene)
         scene.cycles.samples = samples
         scene.cycles.use_denoising = denoise

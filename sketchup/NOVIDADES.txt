@@ -1,2 +1,2 @@
-- Vidro de janela agora é transparente no render: dá para ver o interior pelas janelas (antes o vidro refletia só o céu).
-- Plantas, cortinas e pessoas em PNG com fundo transparente aparecem recortadas (sem o retângulo em volta), com sombra das folhas.
+- Placa de vídeo: a qualidade Alta e Final (Cycles) agora usa a GPU automaticamente - muito mais rápido.
+- Ambientes internos: quando a câmera está dentro de um ambiente, o render ajusta sozinho a exposição, a cor (sem o tom azulado) e a luz que rebate nas paredes.

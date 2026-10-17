@@ -724,6 +724,11 @@ def _apply_mode(mode):
     except Exception:
         pass
     setup_engine(_SPEC)
+    try:                                   # keep the interior look across mode switches
+        from blender.pipeline.interior import apply_interior
+        apply_interior(_SPEC)
+    except Exception:
+        pass
     _sync_settings_from_scene()
     _apply_user_sun(getattr(bpy.context.scene, "bir", None))  # keep the user's sun
     if mode == "crosshatch":

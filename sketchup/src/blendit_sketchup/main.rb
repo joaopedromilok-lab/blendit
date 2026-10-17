@@ -38,7 +38,7 @@ module BlenditSU
     'Rascunho' => { engine: 'EEVEE',  samples: 16,  width: 1280, denoise: false },
     'Boa'      => { engine: 'EEVEE',  samples: 64,  width: 1920, denoise: true },
     'Alta'     => { engine: 'CYCLES', samples: 128, width: 1920, denoise: true },
-    'Final'    => { engine: 'CYCLES', samples: 512, width: 2560, denoise: true }
+    'Final'    => { engine: 'CYCLES', samples: 300, width: 2560, denoise: true }
   }.freeze
 
   # ------------------------------------------------------------- preferências
@@ -192,7 +192,8 @@ module BlenditSU
              resolution: [width, 0], denoise: qcfg[:denoise],
              noite: extra.key?(:noite) ? extra[:noite] : night?,
              flip_section: flip_section?, interior: pref('interior', 'auto'),
-             dois_pontos: pref('dois_pontos', '1') == '1' }
+             dois_pontos: pref('dois_pontos', '1') == '1',
+             tom: pref('tom', 'natural'), brilho: pref('brilho', '0').to_f }
     m = opts[:mode].to_s
     if !opts[:noite] && %w[realistic specular].include?(m) && Ceus.escolhido != 'simulado'
       opts[:ceu] = Ceus.opcoes
@@ -578,6 +579,18 @@ module BlenditSU
     luz.set_validation_proc(id) { night? ? MF_UNCHECKED : MF_CHECKED }
     id = luz.add_item('Noite (só as luminárias)') { set_pref('noite', '1') }
     luz.set_validation_proc(id) { night? ? MF_CHECKED : MF_UNCHECKED }
+    tom = menu.add_submenu('Tom da imagem')
+    [['natural', 'Natural'], ['neutro', 'Branco mais neutro (menos amarelado)'],
+     ['quente', 'Mais aconchegante (mais quente)']].each do |k, nome|
+      id = tom.add_item(nome) { set_pref('tom', k) }
+      tom.set_validation_proc(id) { pref('tom', 'natural') == k ? MF_CHECKED : MF_UNCHECKED }
+    end
+    bri = menu.add_submenu('Brilho')
+    [['-1', 'Bem mais escuro'], ['-0.5', 'Mais escuro'], ['0', 'Normal'],
+     ['0.5', 'Mais claro'], ['1', 'Bem mais claro']].each do |k, nome|
+      id = bri.add_item(nome) { set_pref('brilho', k) }
+      bri.set_validation_proc(id) { pref('brilho', '0') == k ? MF_CHECKED : MF_UNCHECKED }
+    end
     amb = menu.add_submenu('Ambiente interno')
     [['auto', 'Automático'],
      ['sim', 'Sim - é um ambiente interno (fecha o forro se faltar)'],

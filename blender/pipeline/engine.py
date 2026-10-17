@@ -92,3 +92,42 @@ def setup_engine(spec):
             enable_gpu(scene)
         scene.cycles.samples = samples
         scene.cycles.use_denoising = denoise
+        if not osl:
+            _speed_up_cycles(scene, denoise)
+
+
+def _speed_up_cycles(scene, denoise):
+    """Faster renders at the same visible quality (what interior renderers do
+    by default):
+      * adaptive sampling: pixels that are already clean stop early;
+      * no caustics + a light clamp on indirect light: removes the "fireflies"
+        (white sparkles) that otherwise need hundreds of extra samples;
+      * Open Image Denoise on the graphics card, with albedo/normal guides;
+      * textures capped at 4K so a 4 GB card never spills into slow memory."""
+    cy = scene.cycles
+    for attr, val in (("use_adaptive_sampling", True), ("adaptive_threshold", 0.02),
+                      ("caustics_reflective", False), ("caustics_refractive", False),
+                      ("blur_glossy", 1.0), ("sample_clamp_indirect", 10.0),
+                      ("use_light_tree", True)):
+        if hasattr(cy, attr):
+            try:
+                setattr(cy, attr, val)
+            except Exception:
+                pass
+    if denoise:
+        for attr, val in (("denoiser", "OPENIMAGEDENOISE"),
+                          ("denoising_input_passes", "RGB_ALBEDO_NORMAL"),
+                          ("denoising_prefilter", "ACCURATE"),
+                          ("denoising_use_gpu", True)):
+            if hasattr(cy, attr):
+                try:
+                    setattr(cy, attr, val)
+                except Exception:
+                    pass
+    try:
+        scene.render.use_simplify = True
+        scene.render.simplify_subdivision_render = 6
+        if hasattr(cy, "texture_limit_render"):
+            cy.texture_limit_render = "4096"
+    except Exception:
+        pass

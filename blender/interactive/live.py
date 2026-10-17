@@ -734,6 +734,11 @@ def _apply_mode(mode):
         apply_bevel(_SPEC)
     except Exception:
         pass
+    try:
+        from blender.pipeline.tone import apply_tone
+        apply_tone(_SPEC)
+    except Exception:
+        pass
     _sync_settings_from_scene()
     _apply_user_sun(getattr(bpy.context.scene, "bir", None))  # keep the user's sun
     if mode == "crosshatch":

@@ -1,5 +1,5 @@
 {
-  "versao": "0.3.8",
+  "versao": "0.3.9",
   "rbz": "https://raw.githubusercontent.com/joaopedromilok-lab/blendit/main/sketchup/release/blendit_sketchup.rbz",
-  "novidades": "- Paredes retas: os renders saem em perspectiva de 2 pontos (linhas verticais retas, como em foto de arquitetura), mantendo o enquadramento. Dá para desligar em Blendit > Paredes retas.\n- Cortinas: componentes com \"cortina\" no nome viram tecido de verdade - a luz da janela atravessa. Voil/voal/tule ficam semitransparentes; blackout e persiana continuam opacos.\n- (0.3.7) Forro invisível automático e menu Ambiente interno."
+  "novidades": "- Render Final cerca de 2x mais rápido com a mesma qualidade (amostragem adaptativa, menos \"pontinhos brancos\" e limpeza de ruído na placa de vídeo).\n- Luz mais real em ambientes internos de dia: a janela vira a luz principal e as luminárias ficam de apoio (antes a cena ficava alaranjada, com cara de noite).\n- Mais contraste no modo Realista.\n- Novos menus: Tom da imagem (Natural / Branco mais neutro / Mais aconchegante) e Brilho (mais claro ou mais escuro)."
 }

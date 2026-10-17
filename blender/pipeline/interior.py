@@ -25,11 +25,14 @@ _EXPOSURE_BOOST = 0.4
 _WHITE_BALANCE_K = 9000.0
 # Cycles: indirect light is physically weaker than EEVEE's probe and the warm
 # lamps dominate, so it needs more exposure and a slightly COOLER white point.
-_EXPOSURE_BOOST_CYCLES = 1.0
-_WHITE_BALANCE_K_CYCLES = 5800.0
+_EXPOSURE_BOOST_CYCLES = 1.25
+_WHITE_BALANCE_K_CYCLES = 7000.0   # daytime: lamps dimmed, the sky dominates
+_WHITE_BALANCE_K_CYCLES_NIGHT = 5800.0
 # Photographed (HDRI) skies: near neutral.
 _WHITE_BALANCE_K_HDRI = 7500.0
 _WHITE_BALANCE_K_HDRI_CYCLES = 6500.0
+# Fixture power during the day, relative to the extracted value.
+_DAY_LAMPS = 0.35
 
 
 _CEILING = "BIR_AutoCeiling"
@@ -126,6 +129,9 @@ def apply_interior(spec):
     rspec = spec.get("render", {}) or {}
     mode = str(rspec.get("mode", "realistic"))
     want = rspec.get("interior", "auto")
+    scene = bpy.context.scene
+    if "bir_wb_base" in scene:
+        del scene["bir_wb_base"]
     if mode not in LIT_MODES or want is False or str(want).lower() in ("false", "off", "0"):
         return False
     try:
@@ -156,12 +162,26 @@ def apply_interior(spec):
         # A photographed sky is far less blue than the simulated one: keep the
         # white point close to neutral or the room turns pink/orange.
         wb = _WHITE_BALANCE_K_HDRI_CYCLES if cycles else _WHITE_BALANCE_K_HDRI
+    # Daytime: the window is the key light, the fixtures only fill in (as in an
+    # interior photo). Lamps at full power made day shots look like evenings,
+    # orange and flat. At night (sun off) they stay at full power.
+    day = float((spec.get("sun") or {}).get("strength", 1.0) or 0.0) > 0.0 \
+        or float((spec.get("world") or {}).get("strength", 1.0) or 0.0) > 0.2
+    if cycles and not day:
+        wb = _WHITE_BALANCE_K_CYCLES_NIGHT      # lamp-lit: keep some warmth
     view.exposure = float(view.exposure) + boost
     # EEVEE lights a room mostly with the blue sky probe -> warm it to neutral;
     # Cycles bounces the warm lamps physically -> cool it slightly.
     if hasattr(view, "use_white_balance"):
         view.use_white_balance = True
         view.white_balance_temperature = wb
+        scene["bir_wb_base"] = float(wb)
+    try:
+        from .lights import set_lights_strength, has_lights
+        if has_lights():
+            set_lights_strength(_DAY_LAMPS if day else 1.0)
+    except Exception:
+        pass
     ee = scene.eevee
     for attr, val in (("use_raytracing", True), ("use_fast_gi", True),
                       ("fast_gi_distance", 3.0), ("fast_gi_ray_count", 4),

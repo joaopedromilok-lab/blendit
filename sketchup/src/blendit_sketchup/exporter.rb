@@ -719,7 +719,9 @@ module BlenditSU
           'film_transparent' => false,
           'view_transform' => 'AgX',
           'exposure' => 0.0,
-          'interior' => interior_flag
+          'interior' => interior_flag,
+          'tone' => (@opts[:tom] || 'natural').to_s,
+          'brightness' => (@opts[:brilho] || 0).to_f
         }.merge(@section_used ? { 'section_fill' => [0.06, 0.06, 0.06] } : {})
       }
     end

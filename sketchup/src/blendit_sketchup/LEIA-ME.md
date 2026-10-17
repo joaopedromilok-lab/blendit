@@ -35,6 +35,7 @@ está o `blender.exe`.
 | **Céu** | Céu simulado (padrão) ou um céu fotografado em HDRI: limpo ao meio-dia, parcialmente nublado, nublado (luz suave, sem sombra marcada) ou fim de tarde. O céu aparece nas janelas e ilumina o ambiente; o sol continua vindo de Janela > Sombras. Cada céu é baixado uma vez (~6 MB, Poly Haven, CC0). Vale para os estilos Realista e Realista brilhante, de dia. |
 | **Ambiente interno** | Automático, Sim ou Não. Em ambientes sem forro/laje o render fecha a sala com um forro invisível, para a luz entrar pelas janelas. |
 | **Paredes retas** | Perspectiva de 2 pontos: linhas verticais retas, mantendo o enquadramento (ligado por padrão; vistas muito inclinadas ficam como estão). |
+| **Tom da imagem / Brilho** | Natural, branco mais neutro ou mais aconchegante; e brilho de bem mais escuro a bem mais claro. Valem para Realista e Realista brilhante. |
 | **Inverter lado do corte** | Se o corte sair do lado errado, marque esta opção. |
 | **Estilo / Qualidade** | Submenus para escolher o visual e o esforço do render (Rascunho, Boa, Alta, Final). |
 | **Configurações** | Estilo e qualidade padrão, pasta dos renders e caminho do Blender. |

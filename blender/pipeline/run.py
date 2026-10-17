@@ -94,6 +94,11 @@ def prepare_scene(loaded, spec):
         apply_bevel(spec)
     except Exception:
         pass
+    try:
+        from .tone import apply_tone           # contrast, tone, brightness
+        apply_tone(spec)
+    except Exception:
+        pass
     return loaded, spec
 
 

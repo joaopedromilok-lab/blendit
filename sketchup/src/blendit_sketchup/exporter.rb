@@ -477,7 +477,9 @@ module BlenditSU
       return nil unless ok && File.file?(path)
       w = tex.width.to_f * INCH_TO_M
       h = tex.height.to_f * INCH_TO_M
-      { 'uri' => "textures/#{fname}", 'scale_m' => [w > 0 ? w : 1.0, h > 0 ? h : 1.0] }
+      entry = { 'uri' => "textures/#{fname}", 'scale_m' => [w > 0 ? w : 1.0, h > 0 ? h : 1.0] }
+      entry['alpha'] = true if png_com_transparencia?(path)
+      entry
     end
 
     def attr_of(mat, key)
@@ -494,6 +496,15 @@ module BlenditSU
       { 'uri' => "textures/#{fname}", 'scale_m' => diffuse['scale_m'], 'amount' => 0.35 }
     rescue StandardError
       nil
+    end
+
+    # PNG com canal alfa (tipo de cor 4 ou 6) - plantas, cortinas, pessoas 2D.
+    def png_com_transparencia?(path)
+      head = File.binread(path, 26)
+      return false unless head && head.bytesize >= 26 && head[0, 8] == "\x89PNG\r\n\x1a\n".b
+      [4, 6].include?(head.getbyte(25)) || File.binread(path).include?('tRNS')
+    rescue StandardError
+      false
     end
 
     # ---------------------------------------------------------------- spec

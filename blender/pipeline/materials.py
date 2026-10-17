@@ -89,11 +89,12 @@ def build_material(rec, engine="CYCLES", surface="auto", base_dir=None):
     transparency = float(rec.get("transparency", 0.0))
     roughness = max(0.03, min(1.0, float(rec.get("roughness", 0.5))))
     if transparency > 0.0:
-        # Glass-like: physical transmission + smooth surface. (No procedural
-        # surface texture - glass reads through, not off, the face.)
+        # THIN glass (architectural panes): see-through with a Fresnel
+        # reflection, no refraction. Physical transmission made window panes
+        # read as sky mirrors in EEVEE (screen-space refraction can't see the
+        # room behind the pane) and hid every interior seen through a window.
         bsdf.inputs["Roughness"].default_value = min(roughness, 0.1)
-        if _TRANSMISSION in bsdf.inputs:
-            bsdf.inputs[_TRANSMISSION].default_value = transparency
+        _build_thin_glass(nt, bsdf, out, rec, transparency)
         _setup_eevee_glass(mat, engine)
     else:
         bsdf.inputs["Roughness"].default_value = roughness
@@ -160,6 +161,17 @@ def _build_revit_maps(nt, bsdf, rec, base_dir):
     img.projection_blend = 0.25
     nt.links.new(mp.outputs["Vector"], img.inputs["Vector"])
     nt.links.new(img.outputs["Color"], bsdf.inputs["Base Color"])
+    if diffuse.get("alpha"):
+        # Cut-out texture (PNG with transparency: plants, curtains, people from
+        # SketchUp): the image alpha drives the surface's own alpha.
+        nt.links.new(img.outputs["Alpha"], bsdf.inputs["Alpha"])
+        mat = nt.id_data
+        if hasattr(mat, "surface_render_method"):
+            mat.surface_render_method = "DITHERED"
+        elif hasattr(mat, "blend_method"):
+            mat.blend_method = "HASHED"
+        if hasattr(mat, "use_transparent_shadow"):
+            mat.use_transparent_shadow = True
 
     bpath = _map_path(maps.get("bump"), base_dir)
     if bpath is not None:
@@ -186,6 +198,36 @@ def _scale_m(entry):
     return sx, sy
 
 
+def _build_thin_glass(nt, bsdf, out, rec, transparency):
+    """Surface = mix(opaque principled, glass) by `transparency`, where
+    glass = mix(transparent tinted lightly by the base colour, glossy) by a
+    Fresnel term - head-on you see through, at grazing angles it reflects."""
+    base = rec.get("base_color", [0.85, 0.9, 0.9])
+    # Clear glass barely tints; keep the hue but lift it toward white.
+    tint = [0.75 + 0.25 * float(c) for c in base[:3]]
+    trans = nt.nodes.new("ShaderNodeBsdfTransparent")
+    trans.location = (-200, -260)
+    trans.inputs["Color"].default_value = _rgba(tint)
+    gloss = nt.nodes.new("ShaderNodeBsdfGlossy") if "ShaderNodeBsdfGlossy" in dir(bpy.types) \
+        else nt.nodes.new("ShaderNodeBsdfAnisotropic")
+    gloss.location = (-200, -420)
+    gloss.inputs["Roughness"].default_value = 0.02
+    fres = nt.nodes.new("ShaderNodeFresnel")
+    fres.location = (-200, -120)
+    fres.inputs["IOR"].default_value = float(rec.get("ior", 1.52) or 1.52)
+    glass = nt.nodes.new("ShaderNodeMixShader")
+    glass.location = (40, -260)
+    nt.links.new(fres.outputs["Fac"], glass.inputs["Fac"])
+    nt.links.new(trans.outputs["BSDF"], glass.inputs[1])
+    nt.links.new(gloss.outputs["BSDF"], glass.inputs[2])
+    mix = nt.nodes.new("ShaderNodeMixShader")
+    mix.location = (220, 0)
+    mix.inputs["Fac"].default_value = max(0.0, min(1.0, transparency))
+    nt.links.new(bsdf.outputs["BSDF"], mix.inputs[1])
+    nt.links.new(glass.outputs["Shader"], mix.inputs[2])
+    nt.links.new(mix.outputs["Shader"], out.inputs["Surface"])
+
+
 def _setup_eevee_glass(mat, engine):
     if engine != "EEVEE":
         return
@@ -197,6 +239,9 @@ def _setup_eevee_glass(mat, engine):
             setattr(mat, attr, True)
     if hasattr(mat, "surface_render_method"):
         mat.surface_render_method = "BLENDED"
+    # Let the sun through the pane (EEVEE Next; Cycles does this natively).
+    if hasattr(mat, "use_transparent_shadow"):
+        mat.use_transparent_shadow = True
 
 
 def apply_materials(loaded, engine="CYCLES"):

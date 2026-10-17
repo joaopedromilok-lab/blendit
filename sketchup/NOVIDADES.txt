@@ -1,2 +1,2 @@
-- Importar catálogo de fabricante de uma vez: aponte a pasta ou o .zip de texturas e o plugin lê nome, medida e acabamento do nome de cada arquivo (ex.: CALACATA ORO 90X90 POL.jpg). Antes de importar, aparece uma lista para revisar; o que não tiver medida fica em laranja.
-- Subpastas do catálogo viram coleções (ex.: Portobello / Linha Mármores).
+- Vidro de janela agora é transparente no render: dá para ver o interior pelas janelas (antes o vidro refletia só o céu).
+- Plantas, cortinas e pessoas em PNG com fundo transparente aparecem recortadas (sem o retângulo em volta), com sombra das folhas.

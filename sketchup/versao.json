@@ -1,5 +1,5 @@
 {
-  "versao": "0.3.9",
+  "versao": "0.4.0",
   "rbz": "https://raw.githubusercontent.com/joaopedromilok-lab/blendit/main/sketchup/release/blendit_sketchup.rbz",
-  "novidades": "- Render Final cerca de 2x mais rápido com a mesma qualidade (amostragem adaptativa, menos \"pontinhos brancos\" e limpeza de ruído na placa de vídeo).\n- Luz mais real em ambientes internos de dia: a janela vira a luz principal e as luminárias ficam de apoio (antes a cena ficava alaranjada, com cara de noite).\n- Mais contraste no modo Realista.\n- Novos menus: Tom da imagem (Natural / Branco mais neutro / Mais aconchegante) e Brilho (mais claro ou mais escuro)."
+  "novidades": "- Importar catálogo agora aceita arquivos do SketchUp (.skp e .skm), como os que os fabricantes disponibilizam: a textura e o tamanho real de cada material entram em Minhas texturas, sem mexer no projeto aberto.\n- (0.3.9) Render Final ~2x mais rápido, luz do dia mais real em interiores, menus Tom da imagem e Brilho."
 }

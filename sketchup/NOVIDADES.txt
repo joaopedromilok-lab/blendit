@@ -1,4 +1,2 @@
-- Render Final cerca de 2x mais rápido com a mesma qualidade (amostragem adaptativa, menos "pontinhos brancos" e limpeza de ruído na placa de vídeo).
-- Luz mais real em ambientes internos de dia: a janela vira a luz principal e as luminárias ficam de apoio (antes a cena ficava alaranjada, com cara de noite).
-- Mais contraste no modo Realista.
-- Novos menus: Tom da imagem (Natural / Branco mais neutro / Mais aconchegante) e Brilho (mais claro ou mais escuro).
+- Importar catálogo agora aceita arquivos do SketchUp (.skp e .skm), como os que os fabricantes disponibilizam: a textura e o tamanho real de cada material entram em Minhas texturas, sem mexer no projeto aberto.
+- (0.3.9) Render Final ~2x mais rápido, luz do dia mais real em interiores, menus Tom da imagem e Brilho.

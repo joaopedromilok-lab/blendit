@@ -473,6 +473,7 @@ module BlenditSU
 
     # ------------------------------------------------------------- importação em lote
     IMG_EXT = %w[.jpg .jpeg .png .bmp .tif .tiff].freeze
+    MODELO_EXT = %w[.skp .skm].freeze   # catálogos que vêm como arquivo do SketchUp
     MAX_LOTE = 500
 
     # Palavras de acabamento no nome do arquivo (sem acento, minúsculas).
@@ -554,7 +555,7 @@ module BlenditSU
         name = flags & 0x800 != 0 ? name.force_encoding('UTF-8') : name.force_encoding('IBM437').encode('UTF-8')
         pos += 46 + nlen + xlen + clen
         next if name.end_with?('/') || name.include?('__MACOSX')
-        next unless IMG_EXT.include?(File.extname(name).downcase)
+        next unless (IMG_EXT + MODELO_EXT).include?(File.extname(name).downcase)
         break if n >= MAX_LOTE
         rel = name.split('/').reject { |x| x.empty? || x == '..' || x == '.' }
         next if rel.empty?
@@ -573,15 +574,111 @@ module BlenditSU
       dest
     end
 
+    # Arquivos do SketchUp (.skp com a peça aplicada, .skm de material) de uma pasta.
+    def self.modelos_da_pasta(raiz)
+      raiz = raiz.tr('\\', '/')
+      Dir.glob(File.join(raiz, '**', '*')).select do |f|
+        File.file?(f) && MODELO_EXT.include?(File.extname(f).downcase) && File.basename(f) !~ /\A[._]/
+      end.sort.first(MAX_LOTE).map do |f|
+        rel = File.dirname(f)[raiz.length..-1].to_s.sub(%r{\A/}, '')
+        [f, rel]
+      end
+    end
+
+    # Lê os materiais com textura de cada .skp/.skm do catálogo: a imagem e o
+    # tamanho real que o fabricante já configurou. O modelo aberto não muda
+    # (tudo é desfeito no fim). -> itens no mesmo formato de analisar_nome.
+    def self.texturas_de_modelos(raiz, model)
+      lista = modelos_da_pasta(raiz)
+      return [] if lista.empty? || model.nil?
+      dest = File.join(meu_dir, '_importando', "modelos_#{Time.now.strftime('%Y%m%d%H%M%S')}")
+      itens = []
+      lista.each_with_index do |(arquivo, rel), i|
+        Sketchup.status_text = "Blendit: lendo o catálogo #{i + 1} de #{lista.length} - #{File.basename(arquivo)}"
+        begin
+          itens.concat(extrair_de_modelo(model, arquivo, rel, dest))
+        rescue StandardError => e
+          puts "Blendit: não deu para ler #{arquivo}: #{e.message}"
+        end
+      end
+      itens
+    end
+
+    MAT_GENERICO = /\A\s*(\[?(material|mat|color|cor|default|padr[aã]o)(?![[:alpha:]])|<|\d+\s*\z)/i.freeze
+
+    def self.extrair_de_modelo(model, arquivo, rel, dest)
+      antes = model.materials.to_a
+      defn = nil
+      itens = []
+      model.start_operation('Blendit: ler catálogo', true)
+      begin
+        if File.extname(arquivo).downcase == '.skm'
+          return [] unless model.materials.respond_to?(:load)   # SketchUp 2021.1+
+          model.materials.load(arquivo)
+        else
+          defn = model.definitions.load(arquivo)
+        end
+        novos = (model.materials.to_a - antes).select(&:texture)
+        base = File.basename(arquivo, '.*')
+        novos.each_with_index do |m, k|
+          tex = m.texture
+          nome_mat = (m.respond_to?(:display_name) ? m.display_name : m.name).to_s
+          # Um material só no arquivo: o nome do arquivo costuma ser o melhor
+          # ("CALACATA ORO 90X90 POL.skp"); vários: o nome de cada material.
+          nome = novos.length == 1 || nome_mat =~ MAT_GENERICO ? base : nome_mat
+          nome = "#{base} #{k + 1}" if novos.length > 1 && nome_mat =~ MAT_GENERICO
+          a = analisar_nome("#{nome}.x")
+          ext = File.extname(tex.filename.to_s).downcase
+          ext = '.png' unless IMG_EXT.include?(ext)
+          out = File.join(dest, rel, "#{slug(base)}_#{k}#{ext}")
+          FileUtils.mkdir_p(File.dirname(out))
+          ok = begin
+            tex.write(out, true)
+          rescue StandardError
+            false
+          end
+          next unless ok && File.file?(out)
+          w = (tex.width.to_f * 2.54).round(1)
+          h = (tex.height.to_f * 2.54).round(1)
+          if w > 0 && h > 0 && w <= 2000 && h <= 2000
+            a = a.merge('largura_cm' => w, 'altura_cm' => h, 'medida_lida' => true)
+          end
+          itens << a.merge('origem' => out, 'arquivo_origem' => File.basename(arquivo))
+        end
+      ensure
+        model.abort_operation
+        limpar_restos(model, defn, antes)
+      end
+      itens
+    end
+
+    # Se o desfazer não levar tudo embora, remove o que o catálogo trouxe.
+    def self.limpar_restos(model, defn, antes)
+      if defn && defn.respond_to?(:valid?) && defn.valid? && model.definitions.respond_to?(:remove)
+        model.definitions.remove(defn) if defn.instances.empty?
+      end
+      (model.materials.to_a - antes).each do |m|
+        model.materials.remove(m) if model.materials.respond_to?(:remove)
+      end
+    rescue StandardError
+      nil
+    end
+
     # Monta a lista de revisão. -> { 'fabricante' => ..., 'itens' => [...] }
-    def self.preparar_lote(raiz, fabricante)
+    def self.preparar_lote(raiz, fabricante, de_modelos = [])
       existentes = minhas.map { |x| [x['fabricante'].to_s.downcase, x['nome'].to_s.downcase] }
-      itens = imagens_da_pasta(raiz).map do |caminho, sub|
-        a = analisar_nome(caminho)
-        colecao = sub.split('/').last.to_s
+      imgs = imagens_da_pasta(raiz).reject { |c, _s| c.include?('/_importando/modelos_') }
+      itens = imgs.map { |caminho, sub| analisar_nome(caminho).merge('origem' => caminho, 'sub' => sub) }
+      de_modelos.each do |a|
+        sub = File.dirname(a['origem']).split('/modelos_', 2).last.to_s.split('/', 2)[1].to_s
+        itens << a.merge('sub' => sub)
+      end
+      itens = itens.first(MAX_LOTE).map do |a|
+        caminho = a['origem']
+        colecao = a.delete('sub').to_s.split('/').last.to_s
         fab_item = colecao.empty? ? fabricante : "#{fabricante} / #{colecao}"
-        a.merge('origem' => caminho, 'colecao' => colecao,
-                'arquivo' => File.basename(caminho),
+        a.merge('colecao' => colecao,
+                'arquivo' => a.delete('arquivo_origem') || File.basename(caminho),
                 'repetida' => existentes.include?([fab_item.downcase, a['nome'].downcase]),
                 'tamanho_kb' => (File.size(caminho) / 1024.0).round)
       end
@@ -615,9 +712,14 @@ module BlenditSU
     def self.lote_iniciar(dlg, raiz, sugestao)
       fab = UI.inputbox(['Fabricante (vale para todo o lote)'], [sugestao], 'Blendit - Importar catálogo')
       return unless fab
-      lote = preparar_lote(raiz, fab[0].to_s.strip)
+      unless modelos_da_pasta(raiz).empty?
+        dlg.execute_script("status(#{JSON.generate('Lendo os arquivos do SketchUp do catálogo... pode levar alguns minutos.')})")
+      end
+      de_modelos = texturas_de_modelos(raiz, Sketchup.active_model)
+      lote = preparar_lote(raiz, fab[0].to_s.strip, de_modelos)
+      Sketchup.status_text = ''
       if lote['itens'].empty?
-        dlg.execute_script("status(#{JSON.generate('Não achei imagens (JPG, PNG, BMP ou TIF) aí.')})")
+        dlg.execute_script("status(#{JSON.generate('Não achei imagens (JPG, PNG, BMP, TIF) nem arquivos do SketchUp (.skp, .skm) aí.')})")
         return
       end
       lote['itens'].each { |it| it['src'] = 'file:///' + it['origem'].tr('\\', '/') }
@@ -831,7 +933,7 @@ module BlenditSU
           <div class="row" style="margin:4px 0 0">
             <button class="btn sec" onclick="sketchup.lote_pasta()">Importar catálogo (pasta)...</button>
             <button class="btn sec" onclick="sketchup.lote_zip()">Importar catálogo (.zip)...</button>
-            <span style="color:var(--mut);font-size:12px">Nome, medida e acabamento são lidos do nome de cada arquivo (ex.: CALACATA 90X90 POL.jpg).</span>
+            <span style="color:var(--mut);font-size:12px">Aceita imagens e arquivos do SketchUp (.skp, .skm). Nome, medida e acabamento vêm do nome do arquivo (ex.: CALACATA 90X90 POL.jpg); nos .skp a medida vem do próprio material.</span>
           </div>
           <div id="lote" class="lote hide"></div>
           <div id="minhas"></div>

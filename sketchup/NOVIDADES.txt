@@ -1,2 +1,3 @@
-- Ambientes modelados sem forro/laje: o render coloca um forro invisível sozinho. A luz passa a entrar pelas janelas como num ambiente fechado, em vez de cair do céu aberto (fim do visual azulado e estourado). A imagem continua igual à vista do SketchUp.
+- Forro invisível automático mais esperto: funciona em ambientes integrados (sala + cozinha) e com pendentes ou vigas logo acima da câmera.
+- Novo menu Blendit > Ambiente interno: Automático, Sim (fecha o forro se faltar) ou Não (cena externa) - para quando a detecção automática errar.
 - (0.3.5) Preparação da cena bem mais rápida em projetos pesados.

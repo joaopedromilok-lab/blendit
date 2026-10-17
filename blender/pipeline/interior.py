@@ -36,7 +36,10 @@ _CEILING = "BIR_AutoCeiling"
 
 
 def _probe(max_up=8.0, max_side=25.0):
-    """-> (something above the camera?, how many of 8 horizontal rays hit a wall)."""
+    """-> (is there a ceiling above the camera?, how many of 8 horizontal rays
+    hit a wall). The ceiling test casts 5 rays up (at the camera and 0.8 m
+    around it) so a pendant lamp or a beam right above the camera does not
+    count as a ceiling."""
     scene = bpy.context.scene
     cam = scene.camera
     if cam is None:
@@ -48,7 +51,14 @@ def _probe(max_up=8.0, max_side=25.0):
         ok, loc, _n, _i, obj, _m = scene.ray_cast(deps, origin, direction, distance=limit)
         return ok and obj is not None and not obj.name.startswith(("BIR_Ground", _CEILING))
 
-    up = hit(mathutils.Vector((0.0, 0.0, 1.0)), max_up)
+    ups = 0
+    zdir = mathutils.Vector((0.0, 0.0, 1.0))
+    for dx, dy in ((0, 0), (0.8, 0), (-0.8, 0), (0, 0.8), (0, -0.8)):
+        o = origin + mathutils.Vector((dx, dy, 0.0))
+        ok, _l, _n, _i, obj, _m = scene.ray_cast(deps, o, zdir, distance=max_up)
+        if ok and obj is not None and not obj.name.startswith(("BIR_Ground", _CEILING)):
+            ups += 1
+    up = ups >= 3
     walls = 0
     for k in range(8):
         a = math.radians(45.0 * k)
@@ -125,11 +135,13 @@ def apply_interior(spec):
     forced = want is True or str(want).lower() in ("true", "on", "1")
     up, walls = _probe()
     inside = forced or (up and walls >= 6)
-    if not up and not forced and walls >= 6:
-        # No ceiling: only call it a room when the walls are close (an open
-        # courtyard or a street between buildings must stay an exterior).
+    if not up and not forced:
+        # No ceiling: only call it a room when walls are close all around (an
+        # open courtyard or a street between buildings must stay an exterior).
+        # Open-plan rooms leak a ray or two through doors, so 5 of 8 is enough.
         walls = _probe(max_side=12.0)[1]
-    if not up and (forced or walls >= 6) and add_hidden_ceiling():
+        print("[Blendit] no ceiling above the camera; walls around: %d of 8" % walls)
+    if not up and (forced or walls >= 5) and add_hidden_ceiling():
         inside = True
         print("[Blendit] room without a ceiling: added a hidden one so the light "
               "comes in through the windows")

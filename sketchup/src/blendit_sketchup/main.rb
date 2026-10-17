@@ -191,7 +191,7 @@ module BlenditSU
     opts = { mode: extra[:mode] || mode, engine: qcfg[:engine], samples: qcfg[:samples],
              resolution: [width, 0], denoise: qcfg[:denoise],
              noite: extra.key?(:noite) ? extra[:noite] : night?,
-             flip_section: flip_section? }
+             flip_section: flip_section?, interior: pref('interior', 'auto') }
     m = opts[:mode].to_s
     if !opts[:noite] && %w[realistic specular].include?(m) && Ceus.escolhido != 'simulado'
       opts[:ceu] = Ceus.opcoes
@@ -577,6 +577,13 @@ module BlenditSU
     luz.set_validation_proc(id) { night? ? MF_UNCHECKED : MF_CHECKED }
     id = luz.add_item('Noite (só as luminárias)') { set_pref('noite', '1') }
     luz.set_validation_proc(id) { night? ? MF_CHECKED : MF_UNCHECKED }
+    amb = menu.add_submenu('Ambiente interno')
+    [['auto', 'Automático'],
+     ['sim', 'Sim - é um ambiente interno (fecha o forro se faltar)'],
+     ['nao', 'Não - é uma cena externa']].each do |k, nome|
+      id = amb.add_item(nome) { set_pref('interior', k) }
+      amb.set_validation_proc(id) { pref('interior', 'auto') == k ? MF_CHECKED : MF_UNCHECKED }
+    end
     ceu = menu.add_submenu('Céu')
     Ceus::LISTA.each do |k, c|
       id = ceu.add_item(c[:nome]) { set_pref('ceu', k) }

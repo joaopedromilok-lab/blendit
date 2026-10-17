@@ -683,9 +683,20 @@ module BlenditSU
           'denoise' => @opts.key?(:denoise) ? !!@opts[:denoise] : true,
           'film_transparent' => false,
           'view_transform' => 'AgX',
-          'exposure' => 0.0
+          'exposure' => 0.0,
+          'interior' => interior_flag
         }.merge(@section_used ? { 'section_fill' => [0.06, 0.06, 0.06] } : {})
       }
+    end
+
+    # Ambiente interno: 'auto' (o Blendit descobre), true (força: fecha o forro
+    # se faltar) ou false (cena externa).
+    def interior_flag
+      case @opts[:interior].to_s
+      when 'sim' then true
+      when 'nao' then false
+      else 'auto'
+      end
     end
 
     def world_spec

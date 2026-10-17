@@ -1,0 +1,6 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Motor"
+tooltip: |
+  Alterna o motor de render do próximo render: EEVEE <-> CYCLES.
+
+  EEVEE = rápido, quase em tempo real; CYCLES = render final preciso.

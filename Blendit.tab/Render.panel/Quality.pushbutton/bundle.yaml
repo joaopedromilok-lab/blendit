@@ -1,0 +1,9 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Qualidade"
+tooltip: |
+  Qualidade rápida: um clique define motor + amostras + redução de ruído juntos.
+
+  Rascunho = EEVEE, poucas amostras, sem redução de ruído   (prévias rápidas)
+  Padrão   = EEVEE, com redução de ruído                    (o dia a dia)
+  Alta     = Cycles, com redução de ruído                   (boas imagens finais)
+  Final    = Cycles, muitas amostras, sem ruído              (melhor qualidade, lento)

@@ -1,0 +1,4 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Croqui"
+tooltip: |
+  Define o estilo de render: Croqui (linhas tremidas feitas à mão sobre papel).

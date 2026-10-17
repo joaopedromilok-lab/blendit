@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Set the render mode to Brown Paper (black ink + white accents on kraft)."""
-__title__ = "Brown\nPaper"
+"""Define o estilo de render: Papel kraft (nanquim preto + realces brancos sobre papel pardo)."""
+__title__ = "Papel\nKraft"
 __author__ = "Blendit"
 
 import bir_bootstrap

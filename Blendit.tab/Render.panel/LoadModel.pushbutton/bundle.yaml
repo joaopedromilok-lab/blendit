@@ -1,0 +1,13 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Carregar\nVista"
+tooltip: |
+  Carrega a vista ativa no cache do Blendit.
+
+  Funciona numa **vista 3D** OU numa **planta / corte / elevação** - a vista 2D entra
+  como desenho ortográfico em escala (enquadrado pela região de recorte, cortado na
+  faixa da vista), que você pode renderizar direto ou ajustar no Abrir Vista.
+
+  É o único passo demorado (ele triangula a vista inteira), por isso é explícito e
+  mostra uma barra de progresso. NÃO abre o Blender; depois de carregar, use
+  **Abrir Vista** para trabalhar interativamente ou **Renderizar Vista** para gerar
+  a imagem direto. Carregue de novo depois de alterar o modelo.

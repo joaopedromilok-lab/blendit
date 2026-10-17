@@ -1,0 +1,4 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Realista"
+tooltip: |
+  Define o estilo de render: Realista (o padrão fotorrealista: materiais PBR completos).

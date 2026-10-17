@@ -1,0 +1,11 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Abrir\nVista"
+tooltip: |
+  Abre a vista carregada numa sessão interativa do Blender (navegação em tempo real).
+
+  Abre a vista que você já carregou (use **Carregar Vista** antes). Navegue,
+  enquadre a cena, monte plantas / elevações 2D e renderize pelo painel 'Blendit'
+  (tecla N no Blender) - Capturar para uma imagem rápida, Render Final para alta qualidade.
+  Reabrir é rápido: usa o cache da cena já preparado, sem importar de novo.
+
+  Não dá para abrir uma vista que não foi carregada - nesse caso o Blendit avisa.

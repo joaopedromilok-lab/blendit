@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Open the loaded view in an interactive Blender session (real-time navigation).
+u"""Abre a vista carregada numa sess\u00e3o interativa do Blender (navega\u00e7\u00e3o em tempo real).
 
-Opens the view you've already loaded (press **Load View** first). Fly around,
-frame your shot, pose 2D plans / elevations, and render from the 'Blendit' N-panel
-(press N in Blender) - Capture for a quick grab, Render Final for a high-quality one.
-Reopening is fast: it uses the prepared scene cache, so no re-import.
+Abre a vista que voc\u00ea j\u00e1 carregou (use **Carregar Vista** antes). Navegue,
+enquadre a cena, monte plantas / eleva\u00e7\u00f5es 2D e renderize pelo painel 'Blendit'
+(tecla N no Blender) - Capturar para uma imagem r\u00e1pida, Render Final para alta qualidade.
+Reabrir \u00e9 r\u00e1pido: usa o cache da cena j\u00e1 preparado, sem importar de novo.
 
-You can't open a view that isn't loaded - if none is, you'll be told to Load first.
+N\u00e3o d\u00e1 para abrir uma vista que n\u00e3o foi carregada - nesse caso o Blendit avisa.
 """
-__title__ = "Open\nView"
+__title__ = "Abrir\nVista"
 __author__ = "Blendit"
 
 import bir_bootstrap

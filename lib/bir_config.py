@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """User config for Blendit (IronPython 2.7 safe).
 
 Stored as JSON at %APPDATA%\\blendit\\config.json. Shared by the
@@ -25,12 +26,12 @@ MODES = ["realistic", "white", "shadow", "specular",
          "yellowtrace", "kraft", "blueprint",
          "diagram", "watercolor", "risograph"]
 MODE_LABELS = {
-    "realistic": "Realistic", "white": "White / Clay", "shadow": "Shadow study",
-    "specular": "Specular", "linework": "Linework", "pen": "Pen",
-    "sketch": "Sketch", "cel": "Cel / Anime", "hatch": "Hatch",
-    "crosshatch": "Crosshatch", "yellowtrace": "Yellowtrace",
-    "kraft": "Brown Paper", "blueprint": "Blueprint", "diagram": "Diagram",
-    "watercolor": "Watercolor", "risograph": "Risograph",
+    "realistic": u"Realista", "white": u"Maquete branca", "shadow": u"Estudo de sombras",
+    "specular": u"Showroom", "linework": u"Tra\u00e7o", "pen": u"Caneta",
+    "sketch": u"Croqui", "cel": u"Cartoon / anime", "hatch": u"Hachura",
+    "crosshatch": u"Hachura cruzada", "yellowtrace": u"Papel manteiga",
+    "kraft": u"Papel kraft", "blueprint": u"Blueprint", "diagram": u"Diagrama",
+    "watercolor": u"Aquarela", "risograph": u"Risografia",
 }
 RESOLUTIONS = [("720p", [1280, 720]), ("1080p", [1920, 1080]),
                ("1440p", [2560, 1440]), ("4K", [3840, 2160])]
@@ -41,6 +42,11 @@ QUALITY = {
     "High":     {"engine": "CYCLES", "samples": 128, "denoise": True},
     "Final":    {"engine": "CYCLES", "samples": 512, "denoise": True},
 }
+# Display names (pt-BR) for the QUALITY keys above - the keys stay English so
+# saved configs and scripts keep working.
+QUALITY_ORDER = ["Draft", "Standard", "High", "Final"]
+QUALITY_LABELS = {"Draft": u"Rascunho", "Standard": u"Padr\u00e3o", "High": u"Alta",
+                  "Final": u"Final"}
 
 
 def _config_dir():

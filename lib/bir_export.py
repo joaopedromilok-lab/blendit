@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Shared Revit-side export: active 3D view (or demo) -> glTF bundle.
 
 Used by Load View (extraction) and by Render View / Open View (which read
@@ -27,26 +28,26 @@ def extract_or_demo(doc, cfg, report, progress=None, view=None):
     explicit `view` - the Views list's Reload), demo box fallback."""
     overrides = _render_overrides(cfg)
     if doc is None:
-        report("- no active Revit document -> using demo box")
+        report(u"- nenhum documento ativo no Revit -> usando a caixa de demonstra\u00e7\u00e3o")
     else:
         try:
             from bir_extract import revit_extract
             if view is None:
                 view = revit_extract.active_view(doc)
             if view is None:
-                report("- active view can't be loaded -> using demo box "
-                       "(open a 3D, plan, section or elevation view)")
+                report(u"- a vista ativa n\u00e3o pode ser carregada -> usando a caixa de "
+                       u"demonstra\u00e7\u00e3o (abra uma vista 3D, planta, corte ou eleva\u00e7\u00e3o)")
             else:
-                report("- extracting view `%s`..." % view.Name)
+                report(u"- extraindo a vista `%s`..." % view.Name)
                 spec, meshes = revit_extract.build_scene_spec(
                     doc, view, render_overrides=overrides, progress=progress)
                 if meshes:
-                    report("- extracted %d mesh group(s) from `%s`"
+                    report(u"- %d grupo(s) de malha extra\u00eddo(s) de `%s`"
                            % (len(meshes), view.Name))
                     return spec, meshes
-                report("- no geometry extracted -> using demo box")
+                report(u"- nenhuma geometria extra\u00edda -> usando a caixa de demonstra\u00e7\u00e3o")
         except Exception as ex:
-            report("- extraction error (%s) -> using demo box" % ex)
+            report(u"- erro na extra\u00e7\u00e3o (%s) -> usando a caixa de demonstra\u00e7\u00e3o" % ex)
     from bir_extract import demo
     spec, meshes = demo.build_demo_bundle()
     spec.setdefault("render", {}).update(overrides)
@@ -57,7 +58,7 @@ def export_bundle(doc, cfg, report, progress=None, out_dir=None, view=None):
     """-> (bundle_ref, out_dir). Extract + write the glTF bundle. `out_dir` lets
     callers (Load View) target the model cache instead of the render folder."""
     spec, meshes = extract_or_demo(doc, cfg, report, progress=progress, view=view)
-    report("- writing the glTF bundle...")
+    report(u"- gravando o pacote glTF...")
     if out_dir is None:
         out_dir = cfg.get("output_dir") or bir_bootstrap.default_output_dir()
     bundle_ref = get_exporter("gltf").export(spec, meshes, out_dir)
@@ -75,7 +76,7 @@ def export_bundle_with_progress(doc, cfg, report, out_dir=None, view=None):
     if forms is None:
         return export_bundle(doc, cfg, report, out_dir=out_dir, view=view)
 
-    title = "Blendit - extracting model... ({value} of {max_value})"
+    title = u"Blendit - extraindo o modelo... ({value} de {max_value})"
     with forms.ProgressBar(title=title) as pb:
         def progress(done, total):
             try:
@@ -313,11 +314,11 @@ def _fp_diff(old, new):
         return None
     if old.get("elements") is not None and new.get("elements") is not None \
             and old.get("elements") != new.get("elements"):
-        return ("the model has changed (%s elements now vs %s at Load)"
+        return (u"o modelo mudou (%s elementos agora, %s no carregamento)"
                 % (new.get("elements"), old.get("elements")))
     if (old.get("file_mtime") and new.get("file_mtime")
             and old.get("file_mtime") != new.get("file_mtime")):
-        return "the model file was saved since Load"
+        return u"o arquivo do modelo foi salvo depois do carregamento"
     return None
 
 
@@ -336,7 +337,7 @@ def staleness(doc, view=None):
         if old and v is not None:
             try:
                 if old.get("view") and old.get("view") != str(v.Name):
-                    return ("the active view is '%s' but '%s' was loaded"
+                    return (u"a vista ativa \u00e9 '%s', mas foi carregada '%s'"
                             % (v.Name, old.get("view")))
             except Exception:
                 pass
@@ -349,6 +350,6 @@ def slot_staleness(doc, slot):
     else the fingerprint comparison against the live model. None = fresh."""
     view = resolve_view(doc, slot.get("view_uid"))
     if view is None and slot.get("view_uid"):
-        return "the view no longer exists in the model"
+        return u"a vista n\u00e3o existe mais no modelo"
     new = _model_fingerprint(doc, view) if view is not None else None
     return _fp_diff(_load_fingerprint(slot["cache_dir"]), new)

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Set the render mode to Pen (Rhino-style technical pen: white fill, black lines)."""
-__title__ = "Pen"
+u"""Define o estilo de render: Caneta (caneta t\u00e9cnica: fundo branco, linhas pretas)."""
+__title__ = "Caneta"
 __author__ = "Blendit"
 
 import bir_bootstrap

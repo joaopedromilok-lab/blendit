@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Set the render mode to Cel / Anime (toon shading + outline)."""
-__title__ = "Cel"
+"""Define o estilo de render: Cartoon / anime (sombreamento chapado + contorno)."""
+__title__ = "Cartoon"
 __author__ = "Blendit"
 
 import bir_bootstrap

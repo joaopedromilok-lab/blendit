@@ -1,0 +1,5 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Sincronizar\nAgora"
+tooltip: |
+  Envia as mudanças juntadas desde a última sincronização (o envio do Sinc. por
+  Comando; também serve de empurrão manual com o Sinc. ao Vivo ligado).

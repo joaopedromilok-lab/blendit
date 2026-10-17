@@ -1,0 +1,4 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Aquarela"
+tooltip: |
+  Define o estilo de render: Aquarela (aguada quente/fria sob linhas soltas em sépia).

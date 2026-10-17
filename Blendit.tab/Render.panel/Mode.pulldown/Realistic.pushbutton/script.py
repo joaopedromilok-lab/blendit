@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Set the render mode to Realistic (the photoreal default: full PBR)."""
-__title__ = "Realistic"
+u"""Define o estilo de render: Realista (o padr\u00e3o fotorrealista: materiais PBR completos)."""
+__title__ = "Realista"
 __author__ = "Blendit"
 
 import bir_bootstrap

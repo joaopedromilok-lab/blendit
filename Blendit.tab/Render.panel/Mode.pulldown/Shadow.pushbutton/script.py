@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Set the render mode to Shadow study (sun-accurate clay, shadows emphasized)."""
-__title__ = "Shadow"
+"""Define o estilo de render: Estudo de sombras (argila com sol preciso, sombras em destaque)."""
+__title__ = "Estudo de\nSombras"
 __author__ = "Blendit"
 
 import bir_bootstrap

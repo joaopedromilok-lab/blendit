@@ -1,0 +1,4 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Traço"
+tooltip: |
+  Define o estilo de render: Traço (contornos sobre preenchimento claro de argila).

@@ -1,0 +1,5 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Abrir\nRenders"
+tooltip: |
+  Abre a pasta dos renders no Explorer e mostra os últimos renders na janela
+  de saída (afinal, você clicou aqui para VER os renders).

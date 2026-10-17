@@ -1,20 +1,17 @@
 # -*- coding: utf-8 -*-
-"""Render the LOADED view as-is, headless (no interactive Blender).
+u"""Renderiza a vista CARREGADA como est\u00e1, em segundo plano (sem abrir o Blender).
 
-Renders the view you've already loaded - the whole view, in the configured
-Mode / Quality / Resolution - in the background. Use this when you just want a
-straight render of the current view without composing in Blender; for a chosen
-shot, use **Open View** and render from the N-panel instead.
+Renderiza a vista inteira que voc\u00ea j\u00e1 carregou, no Estilo / Qualidade / Resolu\u00e7\u00e3o
+configurados. Use quando quiser s\u00f3 a imagem da vista atual, sem compor no Blender;
+para escolher o enquadramento, use **Abrir Vista** e renderize pelo painel N.
 
-Honest by design: this can take a while on a large model (Cycles especially), but
-Revit stays free and the image opens when it's done. You can't render a view that
-isn't loaded - press **Load View** first.
+Pode demorar num modelo grande (principalmente no Cycles), mas o Revit fica livre
+e a imagem abre sozinha quando terminar. Carregue a vista antes (**Carregar Vista**).
 
-Shift+Click: the same render at FINAL quality (Cycles, high samples, denoised)
-- liked the draft? One click gets the keeper, without touching your Quality
-setting.
+Shift+Clique: o mesmo render em qualidade FINAL (Cycles, muitas amostras, sem ru\u00eddo)
+- gostou do rascunho? Um clique gera a vers\u00e3o definitiva, sem mudar sua Qualidade.
 """
-__title__ = "Render\nView"
+__title__ = "Renderizar\nVista"
 __author__ = "Blendit"
 
 import bir_bootstrap

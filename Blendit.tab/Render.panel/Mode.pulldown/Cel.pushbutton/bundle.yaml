@@ -1,0 +1,4 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Cartoon"
+tooltip: |
+  Define o estilo de render: Cartoon / anime (sombreamento chapado + contorno).

@@ -1,5 +1,8 @@
 # Order the Mode dropdown by family (lit modes, then NPR), matching the interactive
 # N-panel. Without this pyRevit lists them alphabetically.
+title: Estilo
+tooltip: >
+  Estilo do render: 16 visuais, do fotorrealista ao croqui e à aquarela.
 layout:
   - Realistic          # lit / PBR modes
   - White

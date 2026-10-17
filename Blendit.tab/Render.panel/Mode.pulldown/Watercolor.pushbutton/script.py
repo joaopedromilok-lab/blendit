@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Set the render mode to Watercolor (a warm/cool wash under loose sepia lines)."""
-__title__ = "Watercolor"
+u"""Define o estilo de render: Aquarela (aguada quente/fria sob linhas soltas em s\u00e9pia)."""
+__title__ = "Aquarela"
 __author__ = "Blendit"
 
 import bir_bootstrap

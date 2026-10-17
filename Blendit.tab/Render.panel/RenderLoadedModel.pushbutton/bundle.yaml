@@ -1,0 +1,14 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Renderizar\nVista"
+tooltip: |
+  Renderiza a vista CARREGADA como está, em segundo plano (sem abrir o Blender).
+
+  Renderiza a vista inteira que você já carregou, no Estilo / Qualidade / Resolução
+  configurados. Use quando quiser só a imagem da vista atual, sem compor no Blender;
+  para escolher o enquadramento, use **Abrir Vista** e renderize pelo painel N.
+
+  Pode demorar num modelo grande (principalmente no Cycles), mas o Revit fica livre
+  e a imagem abre sozinha quando terminar. Carregue a vista antes (**Carregar Vista**).
+
+  Shift+Clique: o mesmo render em qualidade FINAL (Cycles, muitas amostras, sem ruído)
+  - gostou do rascunho? Um clique gera a versão definitiva, sem mudar sua Qualidade.

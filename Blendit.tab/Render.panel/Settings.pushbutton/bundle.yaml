@@ -1,0 +1,8 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Configurações"
+tooltip: |
+  Configura todo o processo de render do Blendit.
+
+  Um pequeno painel de ajustes: caminho do Blender, pasta de saída, resolução,
+  amostras, redução de ruído, motor e o estilo padrão. Fica salvo em
+  %APPDATA%\blendit\config.json e vale para todos os botões.

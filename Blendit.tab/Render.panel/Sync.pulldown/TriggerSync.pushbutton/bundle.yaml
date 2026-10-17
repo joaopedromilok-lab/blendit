@@ -1,0 +1,5 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Sinc. por\nComando"
+tooltip: |
+  Junta as edições em silêncio e só envia quando você aperta Sincronizar Agora -
+  o modo controlado: faça várias edições e sincronize uma vez.

@@ -1,0 +1,5 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Sinc.\nDesligado"
+tooltip: |
+  Para de escutar as mudanças do modelo - zero custo, sem surpresas.
+  É o padrão; Carregar / Abrir / Renderizar continuam funcionando normalmente.

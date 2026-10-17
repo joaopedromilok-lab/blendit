@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Set the render mode to White / Clay (white matte massing + sun/AO)."""
-__title__ = "White"
+u"""Define o estilo de render: Maquete branca / argila (volume branco fosco + sol/oclus\u00e3o)."""
+__title__ = "Maquete\nBranca"
 __author__ = "Blendit"
 
 import bir_bootstrap

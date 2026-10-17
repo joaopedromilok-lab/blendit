@@ -1,0 +1,4 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Diagrama"
+tooltip: |
+  Define o estilo de render: Diagrama (blocos de cor chapados com contorno forte, estilo pôster).

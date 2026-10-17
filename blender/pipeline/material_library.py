@@ -488,7 +488,7 @@ def _grass(nt, bsdf, tint, roughness):
 # names keep the plain flat colour.
 _LIBRARY = [
     (("brick",), _brick),
-    (("roof tile", "terracotta", "shingle", "clay tile"), _roof_tile),
+    (("roof tile", "roofing tile", "terracotta", "shingle", "clay tile"), _roof_tile),
     (("tile", "ceramic", "porcelain", "mosaic", "glazed"), _tile),
     (("parquet", "plank", "floorboard", "decking", "timber floor",
       "wood floor", "flooring"), _planks),
@@ -511,6 +511,70 @@ _LIBRARY = [
     (("grass", "turf", "lawn", "vegetation", "planting"), _grass),
     (("stone", "marble", "granite", "masonry", "terrazzo", "slate"), _stone),
 ]
+
+
+# Portuguese (pt-BR) material names - Brazilian Revit templates and SketchUp
+# libraries name materials "Tijolo aparente", "Porcelanato", "Concreto"... Matched
+# BEFORE the English table on an accent-free, lower-case copy of the name, by
+# WHOLE WORD (an optional plural "s"/"es" is fine) so short keys like "aco" (steel)
+# can't fire inside "espaco"; a key ending in "*" matches as a word PREFIX.
+_LIBRARY_PT = [
+    (("impermeabiliz*", "manta asfaltica"), None),
+    (("telha metalica", "telha trapez*", "telha ondulad*", "telha de aco",
+      "telha galvaniz*", "telha sanduiche", "zinco"), _corrugated),
+    (("telha", "telhado ceramico"), _roof_tile),
+    (("tijolo", "tijolinho"), _brick),
+    (("porcelanato", "ceramica", "ceramico", "azulejo", "pastilha", "ladrilho",
+      "revestimento ceramico"), _tile),
+    (("assoalho", "piso laminado", "piso vinilico", "piso de madeira", "taco",
+      "tabua", "deck"), _planks),
+    (("madeira", "mdf", "mdp", "compensado", "laminado", "folheado", "bambu",
+      "pinus", "eucalipto", "ipe", "cumaru", "freijo", "carvalho", "jatoba"), _wood),
+    (("agua", "piscina", "lago", "espelho d agua"), _water),
+    (("asfalto", "pavimento", "pavimentacao", "calcada", "paver", "intertravado",
+      "bloquete"), _asphalt),
+    (("concreto", "cimento", "cimenticio", "cimenticia", "contrapiso",
+      "pre moldado", "premoldado", "microcimento"), _concrete),
+    (("brita", "cascalho", "pedrisco", "seixo"), _gravel),
+    (("aco", "inox", "aluminio", "ferro", "cobre", "latao", "bronze", "cromado",
+      "galvaniz*", "metal", "metalico", "metalica"), _metal),
+    (("carpete", "tapete", "tecido", "estofado", "cortina", "feltro", "linho"),
+     _fabric),
+    (("reboco", "gesso", "drywall", "massa corrida", "pintura", "tinta",
+      "acrilica", "grafiato", "emboco"), _plaster),
+    (("grama", "gramado", "vegetacao", "jardim", "forracao"), _grass),
+    (("pedra", "marmore", "granito", "ardosia", "quartzito", "travertino",
+      "miracema", "sao tome", "terrazzo", "marmorite", "granilite"), _stone),
+]
+
+
+def _plain(name):
+    """Lower-case, accent-free, punctuation as spaces: 'Telha Cerâmica (2)' ->
+    'telha ceramica  2 '."""
+    import re
+    import unicodedata
+    s = unicodedata.normalize("NFKD", name or "")
+    s = "".join(c for c in s if not unicodedata.combining(c)).lower()
+    return re.sub(r"[^a-z0-9]+", " ", s)
+
+
+def _pt_match(name):
+    """-> the builder (or None for a STOP entry) of the first pt-BR hit, or the
+    sentinel _NO_HIT when nothing Portuguese matches."""
+    import re
+    text = " %s " % _plain(name)
+    for keys, builder in _LIBRARY_PT:
+        for k in keys:
+            if k.endswith("*"):
+                pat = r"(?<![a-z0-9])" + re.escape(k[:-1])
+            else:
+                pat = r"(?<![a-z0-9])" + re.escape(k) + r"(?:s|es)?(?![a-z0-9])"
+            if re.search(pat, text):
+                return builder
+    return _NO_HIT
+
+
+_NO_HIT = object()
 
 
 # Explicit surface builders, keyed for the N-panel override dropdown. "auto" (name
@@ -549,7 +613,10 @@ def category_for(name):
     """-> the library category name a Revit material maps to, or None."""
     if not name:
         return None
-    low = name.lower()
+    pt = _pt_match(name)
+    if pt is not _NO_HIT:
+        return pt.__name__.lstrip("_") if pt is not None else None
+    low = name.lower().replace("_", " ")   # SketchUp names: "Wood_Floor_Light"
     for keys, builder in _LIBRARY:
         for k in keys:
             if k in low:
@@ -565,7 +632,13 @@ def decorate(nt, bsdf, name, tint, roughness):
     flat-colour material untouched."""
     if not name:
         return None
-    low = name.lower()
+    pt = _pt_match(name)
+    if pt is not _NO_HIT:
+        if pt is None:                         # explicit stop: stays flat
+            return None
+        pt(nt, bsdf, list(tint), float(roughness))
+        return pt.__name__.lstrip("_")
+    low = name.lower().replace("_", " ")   # SketchUp names: "Wood_Floor_Light"
     for keys, builder in _LIBRARY:
         for k in keys:
             if k in low:

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Collect edits quietly and push them only when you press Sync Now - the
-controlled, low-distraction link: do a batch of edits, then sync once."""
-__title__ = "Trigger\nSync"
+u"""Junta as edi\u00e7\u00f5es em sil\u00eancio e s\u00f3 envia quando voc\u00ea aperta Sincronizar Agora -
+o modo controlado: fa\u00e7a v\u00e1rias edi\u00e7\u00f5es e sincronize uma vez."""
+__title__ = "Sinc. por\nComando"
 __author__ = "Blendit"
 
 import bir_bootstrap

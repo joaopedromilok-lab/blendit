@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Set the render mode to Yellowtrace (loose sketch on yellow trace paper)."""
-__title__ = "Yellowtrace"
+"""Define o estilo de render: Papel manteiga (croqui solto em papel amarelo)."""
+__title__ = "Papel\nManteiga"
 __author__ = "Blendit"
 
 import bir_bootstrap

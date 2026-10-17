@@ -1,0 +1,4 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Risografia"
+tooltip: |
+  Define o estilo de render: Risografia (impressão riso em duas cores com contorno azul).

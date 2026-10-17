@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Your loaded views, in one list.
+u"""Suas vistas carregadas, numa lista s\u00f3.
 
-Every view you've pressed **Load View** on keeps its own cached copy, so plans,
-sections, elevations and 3D shots can all be loaded side by side. This lists
-them - newest first, marked **out of date** when the model has changed since
-Load (or the view was deleted) - and lets you **Open** one in Blender,
-**Render** it, **Reload** it (re-extract, even if it's not the active view),
-or **Remove** its cache.
+Cada vista em que voc\u00ea usou **Carregar Vista** guarda a pr\u00f3pria c\u00f3pia, ent\u00e3o
+plantas, cortes, eleva\u00e7\u00f5es e vistas 3D podem ficar carregadas lado a lado. Aqui
+aparecem - as mais novas primeiro, marcadas **desatualizada** quando o modelo mudou
+desde o carregamento (ou a vista foi apagada) - e voc\u00ea pode **Abrir** no Blender,
+**Renderizar**, **Recarregar** (extrair de novo, mesmo sem ser a vista ativa)
+ou **Remover** o cache.
 """
-__title__ = "Views"
+__title__ = "Vistas"
 __author__ = "Blendit"
 
 import bir_bootstrap
@@ -22,7 +22,13 @@ from bir_ui import (report as _report, active_doc as _active_doc,
                     launch_cache_build as _launch_cache_build)
 
 
-def _alert(msg, title="Blendit - Views"):
+_OPEN = u"Abrir no Blender"
+_RENDER = u"Renderizar"
+_RELOAD = u"Recarregar"
+_REMOVE = u"Remover"
+
+
+def _alert(msg, title=u"Blendit - Vistas"):
     try:
         from pyrevit import forms
         forms.alert(msg, title=title)
@@ -35,47 +41,47 @@ def main():
     doc = _active_doc()
     slots = bir_export.loaded_views(doc)
     if not slots:
-        _alert("No views are loaded yet.\n\nPress 'Load View' on a 3D, plan, "
-               "section or elevation view - each loaded view keeps its own "
-               "cached copy and shows up here.")
+        _alert(u"Nenhuma vista carregada ainda.\n\nUse 'Carregar Vista' numa vista 3D, "
+               u"planta, corte ou eleva\u00e7\u00e3o - cada vista carregada guarda a pr\u00f3pria "
+               u"c\u00f3pia e aparece aqui.")
         return
 
-    slot = _pick(doc, slots, "Pick a loaded view:")
+    slot = _pick(doc, slots, u"Escolha uma vista carregada:")
     if slot is None:
         return
 
     try:
         from pyrevit import forms
         action = forms.CommandSwitchWindow.show(
-            ["Open in Blender", "Render", "Reload", "Remove"],
-            message="'%s' - what would you like to do?" % slot["view_name"])
+            [_OPEN, _RENDER, _RELOAD, _REMOVE],
+            message=u"'%s' - o que voc\u00ea quer fazer?" % slot["view_name"])
     except Exception:
         action = None
     if not action:
         return
 
-    if action == "Open in Blender":
+    if action == _OPEN:
         _open(cfg, _report, slot["bundle_ref"], slot["blend_path"])
-    elif action == "Render":
-        _render(cfg, _report, banner="Render '%s'" % slot["view_name"],
+    elif action == _RENDER:
+        _render(cfg, _report, banner=u"Renderizar '%s'" % slot["view_name"],
                 bundle_ref=slot["bundle_ref"])
-    elif action == "Reload":
+    elif action == _RELOAD:
         view = bir_export.resolve_view(doc, slot.get("view_uid"))
         if view is None:
-            _alert("'%s' no longer exists in the model - its cache can only be "
-                   "opened or removed." % slot["view_name"])
+            _alert(u"'%s' n\u00e3o existe mais no modelo - o cache s\u00f3 pode ser "
+                   u"aberto ou removido." % slot["view_name"])
             return
-        _report("**Blendit - reloading '%s'**" % slot["view_name"])
+        _report(u"**Blendit - recarregando '%s'**" % slot["view_name"])
         bundle_ref, blend_path = bir_export.refresh_cache(doc, cfg, _report,
                                                           view=view)
         _launch_cache_build(cfg, bundle_ref, blend_path)
-        _toast("Reloaded: %s" % slot["view_name"])
-    elif action == "Remove":
+        _toast(u"Recarregada: %s" % slot["view_name"])
+    elif action == _REMOVE:
         if bir_export.remove_slot(slot):
-            _toast("Removed: %s" % slot["view_name"])
+            _toast(u"Removida: %s" % slot["view_name"])
         else:
-            _alert("Couldn't remove '%s' - its files may be open in a running "
-                   "Blender session." % slot["view_name"])
+            _alert(u"N\u00e3o foi poss\u00edvel remover '%s' - os arquivos podem estar abertos "
+                   u"num Blender em execu\u00e7\u00e3o." % slot["view_name"])
     _dismiss_output(10)     # info only - the window closes itself
 
 

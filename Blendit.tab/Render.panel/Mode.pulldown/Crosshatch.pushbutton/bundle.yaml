@@ -1,0 +1,4 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Hachura\nCruzada"
+tooltip: |
+  Define o estilo de render: Hachura cruzada (hachuras feitas à mão + contorno).

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Set the render mode to Hatch (tonal shadow hatching + outline)."""
-__title__ = "Hatch"
+"""Define o estilo de render: Hachura (sombras em hachura tonal + contorno)."""
+__title__ = "Hachura"
 __author__ = "Blendit"
 
 import bir_bootstrap

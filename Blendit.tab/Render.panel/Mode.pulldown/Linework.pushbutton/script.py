@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Set the render mode to Linework (Line Art outlines over a light clay fill)."""
-__title__ = "Linework"
+u"""Define o estilo de render: Tra\u00e7o (contornos sobre preenchimento claro de argila)."""
+__title__ = u"Tra\u00e7o"
 __author__ = "Blendit"
 
 import bir_bootstrap

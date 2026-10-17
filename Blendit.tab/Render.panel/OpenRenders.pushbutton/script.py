@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Open the renders output folder in Explorer, with the latest renders shown
-inline in the output window (you pressed this to SEE renders, after all)."""
-__title__ = "Open\nRenders"
+u"""Abre a pasta dos renders no Explorer e mostra os \u00faltimos renders na janela
+de sa\u00edda (afinal, voc\u00ea clicou aqui para VER os renders)."""
+__title__ = "Abrir\nRenders"
 __author__ = "Blendit"
 
 import os
@@ -40,8 +40,8 @@ def _print_gallery(out):
     try:
         from pyrevit import script
         o = script.get_output()
-        o.print_md("**Blendit - latest renders** (full folder is opening "
-                   "in Explorer):")
+        o.print_md(u"**Blendit - \u00faltimos renders** (a pasta completa est\u00e1 "
+                   u"abrindo no Explorer):")
         for p in latest:
             o.print_image(p)
             o.print_md("`%s`" % os.path.basename(p))
@@ -62,7 +62,7 @@ def main():
     if not _open_path(out):
         try:
             from pyrevit import forms
-            forms.alert("Couldn't open the folder:\n%s" % out, title="Blendit")
+            forms.alert(u"N\u00e3o foi poss\u00edvel abrir a pasta:\n%s" % out, title="Blendit")
         except Exception:
             print(out)
 

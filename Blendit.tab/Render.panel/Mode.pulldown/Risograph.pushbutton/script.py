@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Set the render mode to Risograph (a two-tone riso print with a blue keyline)."""
-__title__ = "Risograph"
+u"""Define o estilo de render: Risografia (impress\u00e3o riso em duas cores com contorno azul)."""
+__title__ = "Risografia"
 __author__ = "Blendit"
 
 import bir_bootstrap

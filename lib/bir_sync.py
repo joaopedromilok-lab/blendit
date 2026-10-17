@@ -205,8 +205,8 @@ def _flush(uiapp):
         _log("PATCH FAILED (%s) - falling back to log-only for this flush" % exc)
         # Passive heads-up (auto-dismisses): the Blender view just drifted out
         # of sync and a silent file log is the only other trace.
-        _toast("Blendit sync: a change failed to sync - the Blender view "
-               "may be out of date (details in sync_log.txt)")
+        _toast(u"Sinc. Blendit: uma mudan\u00e7a n\u00e3o foi sincronizada - a vista no "
+               u"Blender pode estar desatualizada (detalhes em sync_log.txt)")
 
 
 def _write_patch(uiapp, dirty, deleted):
@@ -299,8 +299,8 @@ def set_mode(uiapp, mode, report=None):
         _set(ENV_SEQ, None)
         _log("OFF (%s)" % ("unsubscribed" if detached else "was not subscribed"))
         if report:
-            report("**Sync Off** - not listening. Load / Open / Render work "
-                   "as always.")
+            report(u"**Sinc. desligado** - sem escutar mudan\u00e7as. Carregar / Abrir / "
+                   u"Renderizar funcionam normalmente.")
         return
 
     fresh = subscribe(uiapp)
@@ -310,13 +310,13 @@ def set_mode(uiapp, mode, report=None):
                       "subscribed" if fresh else "already subscribed - reused"))
     if report:
         if mode == "live":
-            report("**Live Sync on** - edits stream to the open Blender "
-                   "session on idle.%s" % ("" if PATCH_ENABLED else
-                                           " *(spike build: logging only)*"))
+            report(u"**Sinc. ao vivo ligado** - as edi\u00e7\u00f5es v\u00e3o para a sess\u00e3o aberta "
+                   u"do Blender quando o Revit fica ocioso.%s" % ("" if PATCH_ENABLED else
+                                           u" *(vers\u00e3o de teste: s\u00f3 registra)*"))
         else:
-            report("**Trigger Sync on** - edits accumulate; push them with "
-                   "**Sync Now**.%s" % ("" if PATCH_ENABLED else
-                                        " *(spike build: logging only)*"))
+            report(u"**Sinc. por comando ligado** - as edi\u00e7\u00f5es se acumulam; envie com "
+                   u"**Sincronizar Agora**.%s" % ("" if PATCH_ENABLED else
+                                        u" *(vers\u00e3o de teste: s\u00f3 registra)*"))
 
 
 def sync_now(uiapp, report=None):
@@ -324,15 +324,15 @@ def sync_now(uiapp, report=None):
     if get_state() == "off":
         _log("Sync Now clicked while OFF")
         if report:
-            report("**Sync is Off** - turn on Live or Trigger Sync first.")
+            report(u"**Sinc. desligado** - ligue o Sinc. ao Vivo ou por Comando antes.")
         return
     acc = _get(ENV_ACC)
     if not acc or not (acc["dirty"] or acc["deleted"]):
         _log("Sync Now: nothing pending")
         if report:
-            report("**Nothing to sync** - no model changes since the last flush.")
+            report(u"**Nada para sincronizar** - o modelo n\u00e3o mudou desde o \u00faltimo envio.")
         return
     _flush(uiapp)
     if report:
-        report("**Synced** - pending changes flushed%s."
-               % ("" if PATCH_ENABLED else " (spike build: logged only)"))
+        report(u"**Sincronizado** - mudan\u00e7as pendentes enviadas%s."
+               % ("" if PATCH_ENABLED else u" (vers\u00e3o de teste: s\u00f3 registrado)"))

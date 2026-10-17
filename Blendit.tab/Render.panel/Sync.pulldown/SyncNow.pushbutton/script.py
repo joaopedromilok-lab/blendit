@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Push the changes collected since the last sync (the Trigger Sync flush;
-also works as a manual nudge while Live Sync is on)."""
-__title__ = "Sync\nNow"
+u"""Envia as mudan\u00e7as juntadas desde a \u00faltima sincroniza\u00e7\u00e3o (o envio do Sinc. por
+Comando; tamb\u00e9m serve de empurr\u00e3o manual com o Sinc. ao Vivo ligado)."""
+__title__ = "Sincronizar\nAgora"
 __author__ = "Blendit"
 
 import bir_bootstrap

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Set the render mode to Crosshatch (hand-drawn TAM stroke hatching + outline)."""
-__title__ = "Crosshatch"
+u"""Define o estilo de render: Hachura cruzada (hachuras feitas \u00e0 m\u00e3o + contorno)."""
+__title__ = "Hachura\nCruzada"
 __author__ = "Blendit"
 
 import bir_bootstrap

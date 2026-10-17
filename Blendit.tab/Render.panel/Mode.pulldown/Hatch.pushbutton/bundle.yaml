@@ -1,0 +1,4 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Hachura"
+tooltip: |
+  Define o estilo de render: Hachura (sombras em hachura tonal + contorno).

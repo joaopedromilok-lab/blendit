@@ -1,0 +1,6 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Sinc. ao\nVivo"
+tooltip: |
+  Envia as edições para a sessão aberta do Blender automaticamente: as mudanças
+  são juntadas enquanto você trabalha e enviadas sempre que o Revit fica ocioso.
+  Abra a vista com Abrir Vista antes, para ter uma sessão escutando.

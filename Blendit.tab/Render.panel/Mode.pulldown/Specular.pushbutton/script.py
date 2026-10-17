@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Set the render mode to Specular / Lookdev (emphasize reflectivity + roughness)."""
-__title__ = "Specular"
+"""Define o estilo de render: Showroom / lookdev (destaca reflexos e rugosidade)."""
+__title__ = "Showroom"
 __author__ = "Blendit"
 
 import bir_bootstrap

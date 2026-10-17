@@ -1,4 +1,6 @@
-"""Shared Revit-side button helpers (IronPython 2.7 safe, pure ASCII).
+# -*- coding: utf-8 -*-
+"""Shared Revit-side button helpers (IronPython 2.7 safe; user-facing text in pt-BR,
+so the file is UTF-8 with the coding line above and u"" literals).
 
 The pushbuttons were each re-defining report() / active_doc() / tail(); this is the
 one copy. Uses pyRevit's own `revit.doc` instead of the raw `__revit__` builtin so
@@ -95,23 +97,23 @@ def ensure_blender(cfg, report=None):
         from pyrevit import forms
     except Exception:                       # headless / no pyRevit - just report
         if report:
-            report("**Blender not found.** Install Blender "
-                   "(%s) or set the path in Settings."
+            report(u"**Blender n\u00e3o encontrado.** Instale o Blender "
+                   u"(%s) ou indique o caminho em Configura\u00e7\u00f5es."
                    % _BLENDER_DOWNLOAD_URL)
         return None
 
     choice = forms.alert(
-        "Blender wasn't found on this PC.\n\n"
-        "Blendit renders in Blender - a free, separate program. Install it, or "
-        "point Blendit at an existing blender.exe.",
-        title="Blendit - Blender not found",
-        options=["Download Blender", "Set Blender path...", "Cancel"])
-    if choice == "Download Blender":
+        u"O Blender n\u00e3o foi encontrado neste computador.\n\n"
+        u"O Blendit renderiza no Blender - um programa gratuito e separado. Instale-o "
+        u"ou indique um blender.exe que j\u00e1 exista.",
+        title=u"Blendit - Blender n\u00e3o encontrado",
+        options=[u"Baixar o Blender", u"Indicar o caminho do Blender...", u"Cancelar"])
+    if choice == u"Baixar o Blender":
         open_path(_BLENDER_DOWNLOAD_URL)
         if report:
-            report("Opening the Blender download page. Install Blender, then press "
-                   "the button again (or set the path in Settings).")
-    elif choice == "Set Blender path...":
+            report(u"Abrindo a p\u00e1gina de download do Blender. Instale e depois aperte "
+                   u"o bot\u00e3o de novo (ou indique o caminho em Configura\u00e7\u00f5es).")
+    elif choice == u"Indicar o caminho do Blender...":
         p = forms.pick_file(file_ext="exe")
         if p and os.path.isfile(p):
             import bir_config
@@ -130,20 +132,20 @@ def pick_loaded_view(doc, slots, message):
         return None
     labels = []
     by_label = {}
-    _cache_words = {"ready": "scene ready", "building": "scene building...",
-                    "none": "scene not built"}
+    _cache_words = {"ready": u"cena pronta", "building": u"preparando cena...",
+                    "none": u"cena n\u00e3o preparada"}
     for slot in slots:
         kind = slot.get("view_kind") or ""
         try:
             reason = bir_export.slot_staleness(doc, slot)
         except Exception:
             reason = None
-        status = ("  --  out of date: %s" % reason) if reason else ""
+        status = (u"  --  desatualizada: %s" % reason) if reason else ""
         try:
             cache_word = _cache_words[bir_export.cache_state(slot["blend_path"])]
         except Exception:
             cache_word = ""
-        label = "%s%s  (loaded %s%s)%s" % (
+        label = u"%s%s  (carregada %s%s)%s" % (
             slot["view_name"], ("  [%s]" % kind) if kind else "",
             slot.get("loaded_at") or "?",
             (", %s" % cache_word) if cache_word else "", status)
@@ -151,7 +153,7 @@ def pick_loaded_view(doc, slots, message):
         by_label[label] = slot
     picked = forms.SelectFromList.show(labels,
                                        title="Blendit - %s" % message,
-                                       button_name="Select", multiselect=False)
+                                       button_name=u"Selecionar", multiselect=False)
     if not picked:
         return None
     return by_label.get(picked)
@@ -172,7 +174,7 @@ def require_loaded(doc):
         slots = bir_export.loaded_views(doc)
         if slots:
             slot = pick_loaded_view(
-                doc, slots, "The active view isn't loaded - pick a loaded view:")
+                doc, slots, u"A vista ativa n\u00e3o est\u00e1 carregada - escolha uma vista carregada:")
             if slot is not None:
                 return slot["bundle_ref"], slot["blend_path"]
             return None, None
@@ -187,21 +189,21 @@ def require_loaded(doc):
             try:
                 from pyrevit import forms
                 choice = forms.alert(
-                    "The loaded view may be out of date: %s.\n\n"
-                    "Use the cached version anyway, or cancel and press "
-                    "'Load View' to re-extract first." % reason,
-                    title="Blendit - view changed since Load",
-                    options=["Use cached view", "Cancel"])
-                if choice != "Use cached view":
+                    u"A vista carregada pode estar desatualizada: %s.\n\n"
+                    u"Use a vers\u00e3o em cache mesmo assim, ou cancele e aperte "
+                    u"'Carregar Vista' para extrair de novo." % reason,
+                    title=u"Blendit - a vista mudou desde o carregamento",
+                    options=[u"Usar a vista em cache", u"Cancelar"])
+                if choice != u"Usar a vista em cache":
                     return None, None
             except Exception:
                 pass
         return bundle_ref, blend_path
     try:
         from pyrevit import forms
-        forms.alert("No view is loaded yet.\n\nPress 'Load View' to extract the "
-                    "active view first, then try again.",
-                    title="Blendit - no view loaded")
+        forms.alert(u"Nenhuma vista carregada ainda.\n\nAperte 'Carregar Vista' para "
+                    u"extrair a vista ativa e tente de novo.",
+                    title=u"Blendit - nenhuma vista carregada")
     except Exception:
         pass
     return None, None
@@ -224,14 +226,14 @@ def ensure_loadable_view(doc, report=None):
         return True            # don't block on an import hiccup; extraction reports
     try:
         from pyrevit import forms
-        forms.alert("Open a view Blendit can load.\n\nLoad View works on a 3D view or "
-                    "a plan / section / elevation - switch to one (not a sheet or "
-                    "schedule), then press the button again.",
-                    title="Blendit - view can't be loaded")
+        forms.alert(u"Abra uma vista que o Blendit consiga carregar.\n\nCarregar Vista "
+                    u"funciona numa vista 3D ou numa planta / corte / eleva\u00e7\u00e3o - mude "
+                    u"para uma delas (n\u00e3o folha nem tabela) e aperte o bot\u00e3o de novo.",
+                    title=u"Blendit - esta vista n\u00e3o pode ser carregada")
     except Exception:
         if report:
-            report("**This view can't be loaded.** Open a 3D, plan, section or "
-                   "elevation view and try again.")
+            report(u"**Esta vista n\u00e3o pode ser carregada.** Abra uma vista 3D, planta, "
+                   u"corte ou eleva\u00e7\u00e3o e tente de novo.")
     return False
 
 
@@ -313,8 +315,8 @@ def launch_open_view(cfg, report, bundle_ref, blend_path):
         import bir_sync
         if bir_sync.get_state() != "off":
             cmd.append("--watch")
-            report("**Live sync** - opening un-merged so Revit edits can "
-                   "stream in (a fresh import; the fast cache is skipped).")
+            report(u"**Sinc. ao vivo** - abrindo sem mesclar para as edi\u00e7\u00f5es do Revit "
+                   u"chegarem (importa\u00e7\u00e3o nova; o cache r\u00e1pido n\u00e3o \u00e9 usado).")
     except Exception:
         pass
     import bir_export
@@ -325,36 +327,36 @@ def launch_open_view(cfg, report, bundle_ref, blend_path):
         try:
             from pyrevit import forms
             choice = forms.alert(
-                "The fast-open scene is still being prepared in the "
-                "background.\n\nWait a few minutes and Open View will be "
-                "quick - or open now with a fresh import (slower; Blender "
-                "may say 'Not Responding' while it works).",
-                title="Blendit - scene cache still building",
-                options=["Open now (fresh import)", "Cancel - I'll wait"])
-            if choice != "Open now (fresh import)":
+                u"A cena de abertura r\u00e1pida ainda est\u00e1 sendo preparada em "
+                u"segundo plano.\n\nEspere alguns minutos e o Abrir Vista ser\u00e1 "
+                u"r\u00e1pido - ou abra agora com uma importa\u00e7\u00e3o nova (mais lenta; o "
+                u"Blender pode mostrar 'N\u00e3o est\u00e1 respondendo' enquanto trabalha).",
+                title=u"Blendit - cache da cena ainda em preparo",
+                options=[u"Abrir agora (importa\u00e7\u00e3o nova)", u"Cancelar - vou esperar"])
+            if choice != u"Abrir agora (importa\u00e7\u00e3o nova)":
                 return False
         except Exception:
             pass
     if os.path.isfile(blend_path):
         cmd += ["--blend", blend_path]
-        report("**Blendit** - opening the loaded view (fast: cached scene)")
+        report(u"**Blendit** - abrindo a vista carregada (r\u00e1pido: cena em cache)")
     else:
-        report("**Blendit** - opening the loaded view (first open builds the "
-               "fast-open cache - big multi-link models can take a few minutes; "
-               "the Blender window may say 'Not Responding' while it works)")
-    report("- launching Blender... Navigate to compose, **Enter** to capture, "
-           "**F10** for the full Blender interface.")
+        report(u"**Blendit** - abrindo a vista carregada (a primeira abertura prepara o "
+               u"cache r\u00e1pido - modelos grandes com v\u00ednculos podem levar alguns minutos; "
+               u"o Blender pode mostrar 'N\u00e3o est\u00e1 respondendo' enquanto trabalha)")
+    report(u"- abrindo o Blender... Navegue para compor, **Enter** captura, "
+           u"**N** mostra o painel, **F10** alterna a interface completa do Blender.")
     try:
         # Detached: do NOT wait. Blender stays open; Revit is not blocked.
         subprocess.Popen(cmd)
         return True
     except OSError as ex:
-        report("**ERROR** launching Blender: %s\n\n"
-               "Set the Blender path in Settings (or BLENDIT_BLENDER_EXE)." % ex)
+        report(u"**ERRO** ao abrir o Blender: %s\n\n"
+               u"Indique o caminho do Blender em Configura\u00e7\u00f5es (ou BLENDIT_BLENDER_EXE)." % ex)
         return False
 
 
-def launch_headless_render(cfg, report, banner="Render View", bundle_ref=None):
+def launch_headless_render(cfg, report, banner=u"Renderizar Vista", bundle_ref=None):
     """The Render View launch, shared with its Shift+Click 'at Final
     quality' variant and the Views list: pre-flight Blender, require a loaded
     view (or take an explicit `bundle_ref`), then start a DETACHED headless
@@ -375,10 +377,12 @@ def launch_headless_render(cfg, report, banner="Render View", bundle_ref=None):
         return False
 
     res = cfg.get("resolution", [1600, 900])
-    report("**Blendit - %s**  \n"
-           "mode **%s** | engine **%s** | %sx%s | %s samples%s"
-           % (banner, cfg.get("mode"), cfg.get("engine"), res[0], res[1],
-              cfg.get("samples"), " | denoise" if cfg.get("denoise") else ""))
+    import bir_config
+    report(u"**Blendit - %s**  \n"
+           u"estilo **%s** | motor **%s** | %sx%s | %s amostras%s"
+           % (banner, bir_config.MODE_LABELS.get(cfg.get("mode"), cfg.get("mode")),
+              cfg.get("engine"), res[0], res[1],
+              cfg.get("samples"), u" | sem ru\u00eddo" if cfg.get("denoise") else ""))
 
     out_dir = cfg.get("output_dir") or bir_bootstrap.default_output_dir()
     if not os.path.isdir(out_dir):
@@ -411,13 +415,13 @@ def launch_headless_render(cfg, report, banner="Render View", bundle_ref=None):
         finally:
             logf.close()      # the child holds its own handle; don't leak ours
     except OSError as ex:
-        report("**ERROR** launching Blender: %s\n\n"
-               "Set the Blender path in Settings (or BLENDIT_BLENDER_EXE)." % ex)
+        report(u"**ERRO** ao abrir o Blender: %s\n\n"
+               u"Indique o caminho do Blender em Configura\u00e7\u00f5es (ou BLENDIT_BLENDER_EXE)." % ex)
         return False
 
-    report("- rendering in the background (this can take a while for a large "
-           "model) - **Revit is free to use.** The image opens when it's done."
-           "\n- output: `%s`\n- log (if it fails): `%s`" % (png, log_path))
+    report(u"- renderizando em segundo plano (pode demorar num modelo grande) - "
+           u"**o Revit fica livre para usar.** A imagem abre quando terminar."
+           u"\n- arquivo: `%s`\n- log (se der erro): `%s`" % (png, log_path))
     return True
 
 
@@ -431,8 +435,8 @@ def set_mode(key):
     ok = bir_config.set_value("mode", key)
     label = bir_config.MODE_LABELS.get(key, key)
     if not ok:
-        msg = ("Couldn't save the render mode (is the config file locked or "
-               "read-only?). Nothing was changed.")
+        msg = (u"N\u00e3o foi poss\u00edvel salvar o estilo (o arquivo de configura\u00e7\u00e3o est\u00e1 "
+               u"bloqueado ou somente leitura?). Nada foi alterado.")
         try:
             from pyrevit import forms
             forms.alert(msg, title="Blendit")
@@ -440,7 +444,7 @@ def set_mode(key):
             print(msg)
         return
     ensure_mode_tooltips()          # in case startup ran before the ribbon existed
-    toast("Render mode: %s" % label, image=mode_preview_path(key))
+    toast(u"Estilo do render: %s" % label, image=mode_preview_path(key))
     update_mode_tooltip(label)
 
 
@@ -531,14 +535,15 @@ def toast(message, title="Blendit", image=None):
 
 # --- ribbon hover tooltips (previews live on hover, not in popups) ----------
 # The mode key -> the ribbon button label (each Mode script's __title__).
+# Line breaks in a __title__ count as spaces here (see find_ribbon_item).
 MODE_BUTTON_TEXT = {
-    "realistic": "Realistic", "white": "White", "shadow": "Shadow",
-    "specular": "Specular", "linework": "Linework", "pen": "Pen",
-    "sketch": "Sketch", "cel": "Cel", "hatch": "Hatch",
-    "crosshatch": "Crosshatch", "yellowtrace": "Yellowtrace",
-    "kraft": "Brown Paper", "blueprint": "Blueprint",
-    "diagram": "Diagram", "watercolor": "Watercolor",
-    "risograph": "Risograph",
+    "realistic": u"Realista", "white": u"Maquete Branca", "shadow": u"Estudo de Sombras",
+    "specular": u"Showroom", "linework": u"Tra\u00e7o", "pen": u"Caneta",
+    "sketch": u"Croqui", "cel": u"Cartoon", "hatch": u"Hachura",
+    "crosshatch": u"Hachura Cruzada", "yellowtrace": u"Papel Manteiga",
+    "kraft": u"Papel Kraft", "blueprint": u"Blueprint",
+    "diagram": u"Diagrama", "watercolor": u"Aquarela",
+    "risograph": u"Risografia",
 }
 
 _TOOLTIPS_DONE = [False]
@@ -629,7 +634,7 @@ def set_ribbon_tooltip_text(text, tooltip):
 def update_mode_tooltip(label):
     """Hovering the Mode pulldown answers 'what is it set to right now?'."""
     set_ribbon_tooltip_text(
-        "Mode", "Render mode for the next render.\nCurrent: %s" % label)
+        u"Estilo", u"Estilo do pr\u00f3ximo render.\nAtual: %s" % label)
 
 
 def ensure_mode_tooltips(force=False):

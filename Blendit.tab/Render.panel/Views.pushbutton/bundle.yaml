@@ -1,0 +1,11 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Vistas"
+tooltip: |
+  Suas vistas carregadas, numa lista só.
+
+  Cada vista em que você usou **Carregar Vista** guarda a própria cópia, então
+  plantas, cortes, elevações e vistas 3D podem ficar carregadas lado a lado. Aqui
+  aparecem - as mais novas primeiro, marcadas **desatualizada** quando o modelo mudou
+  desde o carregamento (ou a vista foi apagada) - e você pode **Abrir** no Blender,
+  **Renderizar**, **Recarregar** (extrair de novo, mesmo sem ser a vista ativa)
+  ou **Remover** o cache.

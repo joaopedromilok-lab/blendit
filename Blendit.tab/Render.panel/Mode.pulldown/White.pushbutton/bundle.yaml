@@ -1,0 +1,4 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Maquete\nBranca"
+tooltip: |
+  Define o estilo de render: Maquete branca / argila (volume branco fosco + sol/oclusão).

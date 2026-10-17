@@ -17,16 +17,24 @@ def add_ground(spec=None):
     # A model that brings its OWN site (a site link / toposolid - the Revit side
     # sets world.has_site) needs no artificial ground: a flat plane would
     # z-fight the real terrain and read as a flood plane on any sloped site.
-    if spec is not None and (spec.get("world") or {}).get("has_site"):
+    world = (spec or {}).get("world") or {}
+    under_site = False
+    if world.get("has_site"):
         _remove_existing()
-        return None
+        # Opt-in (SketchUp adapter): the model's own terrain is usually a small lot,
+        # so without a ground the horizon renders as a void. `ground_under_site`
+        # keeps a plane just BELOW the lowest point - out of the terrain's way (no
+        # z-fight), but it fills the view past the lot's edge.
+        if not world.get("ground_under_site"):
+            return None
+        under_site = True
     bb = _scene_bbox()
     if bb is None:
         return None
     mn, mx = bb
     cx = (mn.x + mx.x) / 2.0
     cy = (mn.y + mx.y) / 2.0
-    base_z = mn.z
+    base_z = mn.z - (0.03 if under_site else 0.0)
     footprint = max(mx.x - mn.x, mx.y - mn.y, 1.0)
     half = footprint * 5.0  # plane spans footprint*10 - reads as an infinite ground
 

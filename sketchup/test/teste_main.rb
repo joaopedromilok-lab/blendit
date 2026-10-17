@@ -26,6 +26,8 @@ module UI
     def menu(_n) = Menu.new
     def openpanel(*) = nil
     def inputbox(_p, defaults, *_) = defaults
+    attr_reader :timers
+    def start_timer(_s, _r = false, &b) = ((@timers ||= []) << b; 1)
   end
   class Menu
     def add_submenu(_n) = Menu.new
@@ -102,3 +104,25 @@ puts File.read(script)
 puts '--- Sem cenas'
 BlenditSU.render_all_scenes
 puts UI.log.last
+
+puts '--- Atualização'
+MB_YESNO = 4 unless defined?(MB_YESNO)
+module Sketchup
+  class << self
+    attr_reader :installed
+    def install_from_archive(path, _ask = true) = (@installed = path; true)
+  end
+end
+remote = { 'versao' => '9.9.0', 'rbz' => 'https://exemplo/x.rbz', 'novidades' => '- teste' }
+BlenditSU::Texturas.define_singleton_method(:download) do |url, path|
+  File.write(path, url.include?('versao.json') ? JSON.generate(remote) : 'rbz')
+  path
+end
+BlenditSU::Atualizacao.verificar
+puts "instalado: #{Sketchup.installed}"
+puts UI.log.last
+remote['versao'] = '0.2.1'
+BlenditSU::Atualizacao.verificar
+puts UI.log.last
+puts "timer agendado: #{UI.timers.length}"
+

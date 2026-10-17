@@ -1,5 +1,18 @@
 # Blendit
 
+> **Versão em português** (adaptação de [lewismconte/blendit](https://github.com/lewismconte/blendit)):
+> interface do Revit em pt-BR, plugin para **SketchUp**, luzes das luminárias, corte humanizado,
+> estudo de insolação, pranchas em PDF com carimbo e biblioteca de materiais com texturas reais.
+>
+> - **SketchUp:** baixe [`sketchup/release/blendit_sketchup.rbz`](sketchup/release/blendit_sketchup.rbz)
+>   e instale em Extensões > Gerenciador de extensões > Instalar extensão. O plugin avisa sozinho
+>   quando sair versão nova. Detalhes em [`sketchup/README.md`](sketchup/README.md).
+> - **Revit (pyRevit):** no Prompt de Comando, `pyrevit extend ui Blendit https://github.com/joaopedromilok-lab/blendit.git`
+>   e depois **Reload** no pyRevit. Para atualizar: `pyrevit extensions update Blendit` (ou o botão
+>   Update do pyRevit) e **Reload**.
+> - Precisa do [Blender](https://www.blender.org/download/) 4.2 ou mais novo (gratuito).
+
+
 <p align="center">
   <img src="media/blendit_workflow_readme.gif" alt="Blendit: one click in Revit, rendered in Blender" />
 </p>

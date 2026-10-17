@@ -1,0 +1,5 @@
+- Atualização automática: o plugin avisa quando tem versão nova.
+- Luminárias viram luzes; modo Noite.
+- Corte humanizado pelo plano de corte ativo.
+- Estudo de insolação e pranchas em PDF com carimbo.
+- Biblioteca de materiais com texturas reais.

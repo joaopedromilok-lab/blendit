@@ -6,6 +6,7 @@ require 'tmpdir'
 require 'json'
 require_relative 'exporter'
 require_relative 'texturas'
+require_relative 'atualizacao'
 
 module BlenditSU
   PLUGIN_DIR = File.dirname(__FILE__).freeze
@@ -500,7 +501,7 @@ module BlenditSU
   end
 
   def self.about
-    UI.messagebox("Blendit para SketchUp\n\n" \
+    UI.messagebox("Blendit para SketchUp - versão #{VERSION}\n\n" \
                   "Leva a vista do SketchUp para o Blender e renderiza em 16 estilos.\n\n" \
                   "• Renderizar vista / Abrir no Blender / Renderizar todas as cenas (com prancha).\n" \
                   "• Estudo de insolação: 9 imagens + prancha em PDF.\n" \
@@ -576,11 +577,15 @@ module BlenditSU
     menu.add_separator
     menu.add_item(c_folder)
     menu.add_item(c_settings)
+    menu.add_item('Procurar atualização') { Atualizacao.verificar }
     menu.add_item('Sobre o Blendit') { about }
 
     tb = UI::Toolbar.new('Blendit')
     [c_render, c_open, c_scenes, c_sun, c_lib, c_folder, c_settings].each { |c| tb.add_item(c) }
     tb.restore if tb.get_last_state != TB_HIDDEN
+
+    # Checagem diária de versão nova, sem atrapalhar a abertura do SketchUp.
+    UI.start_timer(10, false) { Atualizacao.verificar(silencioso: true) }
 
     file_loaded(__FILE__)
   end

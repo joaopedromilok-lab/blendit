@@ -35,6 +35,25 @@ def main():
                 z.write(full, os.path.relpath(full, STAGE).replace(os.sep, "/"))
     print("ok:", out, "(%d KB)" % (os.path.getsize(out) // 1024))
 
+    # Publicação: o .rbz vai para sketchup/release/ (versionado no git) e o
+    # versao.json diz ao plugin instalado qual é a versão mais nova.
+    import json
+    import re
+    src = open(os.path.join(SRC, "blendit_sketchup", "atualizacao.rb"), encoding="utf-8").read()
+    ver = re.search(r"VERSION = '([0-9.]+)'", src).group(1)
+    rel = os.path.join(HERE, "release")
+    os.makedirs(rel, exist_ok=True)
+    shutil.copy(out, os.path.join(rel, "blendit_sketchup.rbz"))
+    notes_path = os.path.join(HERE, "NOVIDADES.txt")
+    notes = open(notes_path, encoding="utf-8").read().strip() if os.path.isfile(notes_path) else ""
+    info = {"versao": ver,
+            "rbz": "https://raw.githubusercontent.com/joaopedromilok-lab/blendit/main/"
+                   "sketchup/release/blendit_sketchup.rbz",
+            "novidades": notes}
+    with open(os.path.join(HERE, "versao.json"), "w", encoding="utf-8") as f:
+        json.dump(info, f, ensure_ascii=False, indent=2)
+    print("versao.json ->", ver)
+
 
 if __name__ == "__main__":
     main()

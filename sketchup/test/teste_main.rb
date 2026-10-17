@@ -22,10 +22,10 @@ module UI
   @log = []
   class << self
     attr_reader :log
-    def messagebox(msg, *_) = (@log << msg; 6)
+    def messagebox(msg, type = 0) = (@log << msg; type == 1 ? 1 : 6)
     def menu(_n) = Menu.new
     def openpanel(*) = nil
-    def inputbox(*) = nil
+    def inputbox(_p, defaults, *_) = defaults
   end
   class Menu
     def add_submenu(_n) = Menu.new
@@ -56,6 +56,9 @@ module BlenditSU
     def spawn_window(args) = @spawned << [:window, args]
     def shell_run(line, style) = @spawned << [:shell, line, style]
     def find_blender = 'C:/Program Files/Blender Foundation/Blender 5.1/blender.exe'
+    attr_reader :queues
+    alias_method :real_run_sequence, :run_sequence
+    def run_sequence(jobs, log) = ((@queues ||= []) << [jobs, log])
   end
 end
 
@@ -81,8 +84,15 @@ Sketchup.write_default('BlenditSketchUp', 'quality', 'Final')
 BlenditSU.render_view
 p BlenditSU.spawned.last[1].each_slice(1).to_a.flatten.last(14)
 
+puts '--- Estudo de insolação'
+BlenditSU.sun_study
+jobs, _log = BlenditSU.queues.last
+puts "jobs: #{jobs.length}"
+File.write(File.join(ENV['LOCALAPPDATA'], 'jobs_insolacao.json'), JSON.generate(jobs))
+puts UI.log.last
+
 puts '--- Fila de cenas (gera o .cmd)'
-BlenditSU.run_sequence([['C:/b/blender.exe', '--background', 'x y.py'], ['C:/b/blender.exe', 'z']],
+BlenditSU.real_run_sequence([['C:/b/blender.exe', '--background', 'x y.py'], ['C:/b/blender.exe', 'z']],
                        File.join(ENV['LOCALAPPDATA'], 'renders', 'fila.log'))
 line = BlenditSU.spawned.last[1]
 puts line

@@ -3,7 +3,9 @@
 require 'sketchup.rb'
 require 'fileutils'
 require 'tmpdir'
+require 'json'
 require_relative 'exporter'
+require_relative 'texturas'
 
 module BlenditSU
   PLUGIN_DIR = File.dirname(__FILE__).freeze
@@ -171,11 +173,23 @@ module BlenditSU
     Time.now.strftime('%Y%m%d_%H%M%S')
   end
 
+  def self.night?
+    pref('noite', '0') == '1'
+  end
+
+  def self.flip_section?
+    pref('flip_section', '0') == '1'
+  end
+
   # Exporta a vista atual. Devolve [spec_path, opts] ou nil se falhar.
-  def self.export_current(model, folder_name)
+  # extra: :mode, :width, :noite para forçar algo só nesta exportação.
+  def self.export_current(model, folder_name, extra = {})
     qcfg = QUALITY[quality]
-    opts = { mode: mode, engine: qcfg[:engine], samples: qcfg[:samples],
-             resolution: [qcfg[:width], 0], denoise: qcfg[:denoise] }
+    width = extra[:width] ? [qcfg[:width], extra[:width]].min : qcfg[:width]
+    opts = { mode: extra[:mode] || mode, engine: qcfg[:engine], samples: qcfg[:samples],
+             resolution: [width, 0], denoise: qcfg[:denoise],
+             noite: extra.key?(:noite) ? extra[:noite] : night?,
+             flip_section: flip_section? }
     dir = File.join(cache_dir, folder_name)
     clean_cache
     Sketchup.status_text = 'Blendit: preparando a cena para o Blender...'
@@ -252,6 +266,63 @@ module BlenditSU
                            'N mostra o painel; F10 alterna a interface completa.'
   end
 
+  # ------------------------------------------------------------- prancha
+  BOARD_DICT = 'blendit_prancha'.freeze
+
+  # Pergunta os dados do carimbo (lembra por modelo). -> manifesto parcial ou nil.
+  def self.board_info(model, title)
+    get = ->(k, d) { model.get_attribute(BOARD_DICT, k, d).to_s }
+    prompts = ['Projeto', 'Cliente', 'Endereço', 'Responsável', 'Título da prancha', 'Papel']
+    defaults = [get['projeto', model.title], get['cliente', ''], get['endereco', ''],
+                get['responsavel', pref('responsavel', '')], title, get['formato', 'A3']]
+    lists = ['', '', '', '', '', 'A4|A3|A2|A1']
+    res = UI.inputbox(prompts, defaults, lists, 'Blendit - Prancha (carimbo)')
+    return nil unless res
+    %w[projeto cliente endereco responsavel].each_with_index do |k, i|
+      model.set_attribute(BOARD_DICT, k, res[i].to_s)
+    end
+    model.set_attribute(BOARD_DICT, 'formato', res[5].to_s)
+    set_pref('responsavel', res[3].to_s)
+    fields = { 'Projeto' => res[0], 'Cliente' => res[1], 'Endereço' => res[2],
+               'Responsável' => res[3], 'Data' => Time.now.strftime('%d/%m/%Y'), 'Folha' => '01/01' }
+    { 'format' => res[5].to_s, 'title' => res[4].to_s,
+      'fields' => fields.reject { |_k, v| v.to_s.strip.empty? },
+      'note' => 'Imagens ilustrativas. Renders gerados com Blendit.', 'open' => true }
+  end
+
+  # Grava o manifesto e devolve o comando do Blender que monta a prancha.
+  def self.board_job(blender, manifest, items, pdf_path)
+    data = manifest.merge('items' => items, 'out' => pdf_path)
+    path = File.join(cache_dir, "prancha_#{stamp}_#{rand(1000)}.json")
+    FileUtils.mkdir_p(File.dirname(path))
+    File.open(path, 'w:UTF-8') { |f| f.write(JSON.pretty_generate(data)) }
+    [blender, '--background', '--python', File.join(CORE_DIR, 'blender', 'headless', 'prancha.py'),
+     '--', '--manifest', path]
+  end
+
+  # Monta uma prancha com as imagens (PNG/JPG) de uma pasta.
+  def self.board_from_folder
+    model = check_model or return
+    blender = ensure_blender or return
+    dir = UI.respond_to?(:select_directory) ? UI.select_directory(title: 'Pasta com as imagens', directory: output_dir) : nil
+    return unless dir
+    imgs = Dir.glob(File.join(dir, '*.{png,PNG,jpg,JPG,jpeg,JPEG}'))
+              .reject { |f| File.basename(f) =~ /prancha/i }.sort
+    if imgs.empty?
+      UI.messagebox('Não achei imagens PNG ou JPG nessa pasta.')
+      return
+    end
+    if imgs.length > 12
+      UI.messagebox("A pasta tem #{imgs.length} imagens; a prancha usa as 12 primeiras (em ordem de nome).")
+      imgs = imgs.first(12)
+    end
+    man = board_info(model, 'Perspectivas') or return
+    items = imgs.map { |f| { 'image' => f, 'label' => File.basename(f, '.*').tr('_', ' ') } }
+    pdf = File.join(output_dir, "#{safe_name(model.title)}_prancha_#{stamp}.pdf")
+    spawn_hidden(board_job(blender, man, items, pdf), pdf.sub(/\.pdf\z/, '.log'))
+    UI.messagebox("Montando a prancha (#{items.length} imagens). O PDF abre sozinho quando ficar pronto.\n\n#{pdf}")
+  end
+
   # Renderiza todas as cenas (abas) do modelo, uma depois da outra, em segundo plano.
   def self.render_all_scenes
     model = check_model or return
@@ -264,12 +335,17 @@ module BlenditSU
     ok = UI.messagebox("Renderizar #{pages.length} cena(s) no estilo atual, uma de cada vez?\n\n" \
                        'Enquanto prepara, o SketchUp vai passar por cada cena.', MB_OKCANCEL)
     return unless ok == IDOK
+    man = nil
+    if UI.messagebox('Montar também uma prancha em PDF com as cenas, com carimbo?', MB_YESNO) == IDYES
+      man = board_info(model, 'Perspectivas')
+    end
 
     popts = model.options['PageOptions']
     old_transition = popts['ShowTransition']
     original = model.pages.selected_page
     base = "#{safe_name(model.title)}_#{stamp}"
     jobs = []
+    items = []
     begin
       popts['ShowTransition'] = false
       pages.each_with_index do |page, i|
@@ -279,15 +355,95 @@ module BlenditSU
         next unless spec
         png = File.join(output_dir, "#{base}_#{format('%02d', i + 1)}_#{safe_name(page.name)}.png")
         jobs << render_args(blender, spec, png, opts)
+        items << { 'image' => png, 'label' => page.name.to_s }
       end
     ensure
       model.pages.selected_page = original if original
       popts['ShowTransition'] = old_transition
     end
     return if jobs.empty?
+    if man
+      jobs << board_job(blender, man, items.first(12), File.join(output_dir, "#{base}_prancha.pdf"))
+    end
     run_sequence(jobs, File.join(output_dir, "#{base}_cenas.log"))
-    UI.messagebox("#{jobs.length} cena(s) na fila do Blender.\n\nAs imagens vão aparecendo em:\n#{output_dir}\n\n" \
-                  'A pasta abre sozinha quando todas terminarem.')
+    UI.messagebox("#{items.length} cena(s) na fila do Blender#{man ? ' + a prancha' : ''}.\n\n" \
+                  "As imagens vão aparecendo em:\n#{output_dir}\n\n" \
+                  'A pasta abre sozinha quando tudo terminar.')
+  end
+
+  # ------------------------------------------------------------- insolação
+  SUN_DATES = [[6, 21, '21/06', 'Inverno (21/06)'], [3, 21, '21/03', 'Equinócio (21/03)'],
+               [12, 21, '21/12', 'Verão (21/12)']].freeze
+  SUN_HOURS = [9, 12, 15].freeze
+
+  # Pergunta ao próprio SketchUp a direção do sol em cada data/hora (mesma
+  # localização, fuso e norte do modelo) e desfaz a mudança de horário depois.
+  def self.sun_vectors(model)
+    si = model.shadow_info
+    original = si['ShadowTime']
+    year = Time.now.year
+    out = {}
+    model.start_operation('Blendit - insolação', true)
+    begin
+      SUN_DATES.each do |mo, d, _l, _r|
+        SUN_HOURS.each do |h|
+          si['ShadowTime'] = Time.gm(year, mo, d, h, 0)
+          v = si['SunDirection']
+          out[[mo, h]] = [v.x.to_f, v.y.to_f, v.z.to_f]
+        end
+      end
+    ensure
+      si['ShadowTime'] = original if original
+      model.abort_operation
+    end
+    out
+  end
+
+  def self.sun_study
+    model = check_model or return
+    blender = ensure_blender or return
+    si = model.shadow_info
+    place = [si['City'], si['Country']].map(&:to_s).reject(&:empty?).join(', ')
+    place = 'sem nome' if place.empty?
+    lat = si['Latitude'].to_f.round(4)
+    lon = si['Longitude'].to_f.round(4)
+    ok = UI.messagebox("Estudo de insolação - 9 imagens (estilo Estudo de sombras):\n" \
+                       "21/06, 21/03 e 21/12, às 9h, 12h e 15h, na vista atual.\n\n" \
+                       "Local do modelo: #{place} (lat #{lat}, long #{lon}).\n" \
+                       "Se não for o terreno certo, ajuste em Janela > Informações do modelo > " \
+                       "Geolocalização antes.\n\nContinuar?", MB_OKCANCEL)
+    return unless ok == IDOK
+    man = board_info(model, 'Estudo de insolação')
+    base = "#{safe_name(model.title)}_#{stamp}"
+    spec, opts = export_current(model, "#{base}_insolacao", mode: 'shadow', width: 1600, noite: false)
+    return unless spec
+    data = JSON.parse(File.read(spec, encoding: 'UTF-8'))
+    vecs = sun_vectors(model)
+    jobs = []
+    items = []
+    SUN_DATES.each do |mo, _d, short, _row|
+      SUN_HOURS.each do |h|
+        v = vecs[[mo, h]]
+        one = JSON.parse(JSON.generate(data))
+        one['sun'] = one['sun'].merge('mode' => 'vector', 'direction' => v.map { |x| -x },
+                                      'strength' => 1.0, 'azimuth_degrees' => nil,
+                                      'altitude_degrees' => nil, 'latitude' => nil, 'longitude' => nil)
+        one['render']['mode'] = 'shadow'
+        path = File.join(File.dirname(spec), format('scene_spec_%02d_%02dh.json', mo, h))
+        File.open(path, 'w:UTF-8') { |f| f.write(JSON.pretty_generate(one)) }
+        png = File.join(output_dir, format('%s_insolacao_%02d-21_%02dh.png', base, mo, h))
+        jobs << render_args(blender, path, png, opts.merge(mode: 'shadow'))
+        items << { 'image' => png, 'label' => "#{short} - #{h}h" + (v[2] <= 0 ? ' (sol abaixo do horizonte)' : '') }
+      end
+    end
+    if man
+      man = man.merge('cols' => 3, 'row_labels' => SUN_DATES.map { |x| x[3] },
+                      'note' => "Local: #{place} (lat #{lat}, long #{lon}). Horários locais do modelo.")
+      jobs << board_job(blender, man, items, File.join(output_dir, "#{base}_insolacao.pdf"))
+    end
+    run_sequence(jobs, File.join(output_dir, "#{base}_insolacao.log"))
+    UI.messagebox("Estudo de insolação na fila: 9 imagens#{man ? ' + a prancha em PDF' : ''}.\n\n" \
+                  "Leva alguns minutos. A pasta abre sozinha quando terminar:\n#{output_dir}")
   end
 
   # Uma fila: um Blender por vez, para não sobrecarregar o computador.
@@ -346,10 +502,12 @@ module BlenditSU
   def self.about
     UI.messagebox("Blendit para SketchUp\n\n" \
                   "Leva a vista do SketchUp para o Blender e renderiza em 16 estilos.\n\n" \
-                  "• Renderizar vista: gera a imagem em segundo plano.\n" \
-                  "• Abrir no Blender: para compor o enquadramento, trocar o estilo ao vivo (tecla N) " \
-                  "e capturar com Enter.\n" \
-                  "• Renderizar todas as cenas: uma imagem por cena do modelo.\n\n" \
+                  "• Renderizar vista / Abrir no Blender / Renderizar todas as cenas (com prancha).\n" \
+                  "• Estudo de insolação: 9 imagens + prancha em PDF.\n" \
+                  "• Biblioteca de materiais: texturas reais em tamanho real (Poly Haven, CC0).\n" \
+                  "• Luminárias viram luzes (pelo nome: spot, pendente, plafon, arandela, fita LED...).\n" \
+                  "• Plano de corte ativo vira corte no render, com o corte preenchido.\n" \
+                  "• Iluminação Dia ou Noite.\n\n" \
                   "Precisa do Blender 4.2 ou mais novo (gratuito, blender.org).\n\n" \
                   "Baseado no Blendit de lewismconte (licença MIT): github.com/lewismconte/blendit")
   end
@@ -370,13 +528,21 @@ module BlenditSU
     cmd
   end
 
+  def self.toggle(key)
+    set_pref(key, pref(key, '0') == '1' ? '0' : '1')
+  end
+
   unless file_loaded?(__FILE__)
     c_render = command('Renderizar vista', 'Renderiza a vista atual no Blender com o estilo escolhido',
                        'render') { render_view }
     c_open = command('Abrir no Blender', 'Abre a vista no Blender para compor e ajustar ao vivo',
                      'abrir') { open_in_blender }
-    c_scenes = command('Renderizar todas as cenas', 'Uma imagem por cena do modelo, em fila',
+    c_scenes = command('Renderizar todas as cenas', 'Uma imagem por cena do modelo, em fila (e prancha em PDF)',
                        'cenas') { render_all_scenes }
+    c_sun = command('Estudo de insolação', '9 imagens: 21/06, 21/03 e 21/12 às 9h, 12h e 15h, com prancha',
+                    'sol') { sun_study }
+    c_lib = command('Biblioteca de materiais', 'Texturas reais em tamanho real: porcelanatos, madeiras, pedras...',
+                    'materiais') { Texturas.show }
     c_folder = command('Abrir pasta dos renders', 'Abre a pasta onde as imagens são salvas',
                        'pasta') { open_renders }
     c_settings = command('Configurações...', 'Estilo, qualidade, pasta e caminho do Blender',
@@ -386,6 +552,9 @@ module BlenditSU
     menu.add_item(c_render)
     menu.add_item(c_open)
     menu.add_item(c_scenes)
+    menu.add_item(c_sun)
+    menu.add_item(c_lib)
+    menu.add_item('Montar prancha com imagens de uma pasta...') { board_from_folder }
     menu.add_separator
     styles = menu.add_submenu('Estilo')
     MODES.each do |key, label, _desc|
@@ -397,13 +566,20 @@ module BlenditSU
       id = quals.add_item(qk) { set_pref('quality', qk) }
       quals.set_validation_proc(id) { quality == qk ? MF_CHECKED : MF_UNCHECKED }
     end
+    luz = menu.add_submenu('Iluminação')
+    id = luz.add_item('Dia (sol e céu + luminárias)') { set_pref('noite', '0') }
+    luz.set_validation_proc(id) { night? ? MF_UNCHECKED : MF_CHECKED }
+    id = luz.add_item('Noite (só as luminárias)') { set_pref('noite', '1') }
+    luz.set_validation_proc(id) { night? ? MF_CHECKED : MF_UNCHECKED }
+    id = menu.add_item('Inverter lado do corte') { toggle('flip_section') }
+    menu.set_validation_proc(id) { flip_section? ? MF_CHECKED : MF_UNCHECKED }
     menu.add_separator
     menu.add_item(c_folder)
     menu.add_item(c_settings)
     menu.add_item('Sobre o Blendit') { about }
 
     tb = UI::Toolbar.new('Blendit')
-    [c_render, c_open, c_scenes, c_folder, c_settings].each { |c| tb.add_item(c) }
+    [c_render, c_open, c_scenes, c_sun, c_lib, c_folder, c_settings].each { |c| tb.add_item(c) }
     tb.restore if tb.get_last_state != TB_HIDDEN
 
     file_loaded(__FILE__)

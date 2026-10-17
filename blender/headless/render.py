@@ -46,6 +46,10 @@ def _parse_args():
                    help="export the line work as scalable SVG / PDF instead of a "
                         "raster (needs a line mode, e.g. linework/pen/sketch/"
                         "cel/hatch/crosshatch)")
+    p.add_argument("--sun-date", dest="sun_date", metavar="YYYY-MM-DD",
+                   help="sun study: recompute the sun for this date at the site")
+    p.add_argument("--sun-time", dest="sun_time", metavar="HH:MM",
+                   help="sun study: local clock time (site timezone)")
     p.add_argument("--open", action="store_true",
                    help="open the result when done (so the launcher needn't wait)")
     return p.parse_args(args)
@@ -141,6 +145,10 @@ def main():
         overrides["camera_type"] = ns.camera
     if ns.two_point:
         overrides["two_point"] = (ns.two_point == "on")
+    if ns.sun_date:
+        overrides["sun_date"] = ns.sun_date
+    if ns.sun_time:
+        overrides["sun_time"] = ns.sun_time
 
     # Resolve to absolute paths: Blender relativizes render.filepath against its
     # own base (not the process CWD), so a relative --out would land off-repo.

@@ -19,7 +19,10 @@ module BlenditSU
     # opts: :mode, :engine, :samples, :resolution ([w,h]), :denoise, :name
     def initialize(model, opts = {})
       @model = model
-      @opts = opts
+      @opts = opts.dup
+      # Noite só faz sentido nos estilos com luz (nos de desenho as luminárias
+      # ficam apagadas e a imagem sairia preta).
+      @opts[:noite] = false unless %w[realistic specular].include?(@opts[:mode].to_s)
       @buckets = {}          # [chave, material_id] -> MeshBucket
       @materials = {}        # Sketchup::Material (ou :default) -> registro do contrato
       @mat_order = []
@@ -29,9 +32,12 @@ module BlenditSU
       @ground_area = 0.0
       @min_z = Float::INFINITY
       @bounds = nil
+      @lights = []
+      @in_light = nil
+      @section_used = false
     end
 
-    attr_reader :faces
+    attr_reader :faces, :lights, :section_used
 
     # Exporta para out_dir e devolve o caminho do scene_spec.json.
     def export(out_dir)
@@ -65,13 +71,16 @@ module BlenditSU
     end
 
     # ---------------------------------------------------------------- percurso
-    # key = [nó, rótulo, categoria] do objeto de nível superior que contém a face
-    def walk(entities, tr, inherited, key, depth)
+    # key = [nó, rótulo, categoria] do objeto de nível superior que contém a face.
+    # clips = planos de corte ativos que valem para estas entidades: [[n, d], ...]
+    # no espaço do mundo; fica o lado com n·p + d >= 0.
+    def walk(entities, tr, inherited, key, depth, clips = [])
+      clips = clips + section_clips(entities, tr)
       entities.each do |e|
         next unless visible?(e)
         case e
         when Sketchup::Face
-          add_face(e, tr, inherited, key)
+          add_face(e, tr, inherited, key, clips)
         when Sketchup::Group, Sketchup::ComponentInstance
           defn = e.definition
           next if defn.nil?
@@ -81,24 +90,181 @@ module BlenditSU
             tag = e.layer ? e.layer.name.to_s : ''
             child_key = ["E#{e.entityID}", label, tag]
           end
+          child_tr = tr * e.transformation
+          add_light(e, defn, child_tr, clips) unless @in_light
+          # Uma luminária detectada: as peças de dentro não viram outra luz.
+          was = @in_light
+          @in_light ||= light_kind(e, defn)
           child_mat = e.material || inherited
-          walk(defn.entities, tr * e.transformation, child_mat, child_key, depth + 1)
+          walk(defn.entities, child_tr, child_mat, child_key, depth + 1, clips)
+          @in_light = was
         end
       end
     end
 
-    def add_face(face, tr, inherited, key)
+    # ---------------------------------------------------------------- corte
+    # Plano de corte ativo destas entidades (no modelo ou dentro de um grupo).
+    # A seta do plano aponta para o que FICA visível (é para onde se olha ao
+    # "Alinhar vista"); se sair invertido, há a opção "Inverter lado do corte".
+    def section_clips(entities, tr)
+      return [] unless @opts.fetch(:section, true)
+      return [] if @model.rendering_options['DisplaySectionCuts'] == false
+      sp = entities.respond_to?(:active_section_plane) ? entities.active_section_plane : nil
+      return [] unless sp && sp.respond_to?(:get_plane)
+      a, b, c, d = sp.get_plane.map(&:to_f)
+      nl = Geom::Vector3d.new(a, b, c)
+      len2 = nl.dot(nl)
+      return [] if len2 <= 0
+      p0 = Geom::Point3d.new(-d * a / len2, -d * b / len2, -d * c / len2).transform(tr)
+      n = xform_normal(nl, tr, mirrored?(tr))
+      n.reverse! if @opts[:flip_section]
+      dw = -(n.x * p0.x + n.y * p0.y + n.z * p0.z)
+      @section_used = true
+      [[[n.x, n.y, n.z], dw]]
+    end
+
+    def side(clip, p)
+      n, d = clip
+      n[0] * p[0] + n[1] * p[1] + n[2] * p[2] + d
+    end
+
+    # Sutherland-Hodgman: recorta um polígono [[pos, normal], ...] por um plano.
+    def clip_poly(poly, clip)
+      out = []
+      poly.each_with_index do |cur, i|
+        prev = poly[i - 1]
+        sc = side(clip, cur[0])
+        sp = side(clip, prev[0])
+        if sc >= 0
+          out << lerp_vert(prev, cur, sp / (sp - sc)) if sp < 0
+          out << cur
+        elsif sp >= 0
+          out << lerp_vert(prev, cur, sp / (sp - sc))
+        end
+      end
+      out
+    end
+
+    def lerp_vert(a, b, t)
+      pa, na = a
+      pb, nb = b
+      pos = (0..2).map { |k| pa[k] + (pb[k] - pa[k]) * t }
+      nrm = (0..2).map { |k| na[k] + (nb[k] - na[k]) * t }
+      l = Math.sqrt(nrm.sum { |x| x * x })
+      nrm = nrm.map { |x| x / l } if l > 0
+      [pos, nrm]
+    end
+
+    # ---------------------------------------------------------------- luzes
+    # Luminárias viram luzes de verdade no Blender, reconhecidas pelo NOME do
+    # componente/grupo (ou da definição). Dá para ajustar uma luminária pelo
+    # dicionário de atributos "blendit": luz=nao, kelvin=2700, candela=1200.
+    LIGHT_RULES = [
+      [:fita,     ['fita led', 'fita de led', 'led strip', 'perfil led', 'perfil de led']],
+      [:pendente, ['pendente', 'pendant', 'lustre', 'chandelier']],
+      [:spot,     ['spot', 'embutido', 'downlight', 'dicroica', 'dicroico', 'ar70', 'ar111',
+                   'par20', 'par30', 'balizador']],
+      [:plafon,   ['plafon', 'plafom', 'plafonier', 'ceiling light', 'painel led', 'painel de led']],
+      [:arandela, ['arandela', 'sconce', 'wall light']],
+      [:abajur,   ['abajur', 'luminaria de mesa', 'luminaria de piso', 'luminaria de chao',
+                   'luminaria de coluna', 'table lamp', 'floor lamp']],
+      [:generica, ['luminaria', 'lampada', 'lamp', 'light', 'luz']]
+    ].freeze
+
+    # [kelvin, candela, tipo]
+    LIGHT_DEFAULTS = {
+      spot: [3000, 2500, 'spot'], pendente: [2700, 1300, 'point'], plafon: [3000, 2000, 'point'],
+      arandela: [2700, 800, 'point'], abajur: [2700, 700, 'point'], generica: [3000, 1300, 'point'],
+      fita: [3000, 300, 'point']
+    }.freeze
+
+    def self.plain(s)
+      s.to_s.unicode_normalize(:nfkd).gsub(/[^\x00-\x7F]/, '').downcase.gsub(/[^a-z0-9]+/, ' ')
+    end
+
+    def attr(e, defn, key)
+      [e, defn].each do |o|
+        next unless o.respond_to?(:get_attribute)
+        v = o.get_attribute('blendit', key)
+        return v unless v.nil?
+      end
+      nil
+    end
+
+    def light_kind(e, defn)
+      return nil unless @opts.fetch(:lights, true)
+      off = attr(e, defn, 'luz')
+      return nil if off == false || %w[nao não no off false 0].include?(off.to_s.downcase)
+      forced = attr(e, defn, 'tipo')
+      return forced.to_s.to_sym if forced && LIGHT_DEFAULTS.key?(forced.to_s.to_sym)
+      text = " #{Exporter.plain(e.name)} #{Exporter.plain(defn.name)} "
+      LIGHT_RULES.each do |kind, keys|
+        keys.each do |k|
+          return kind if text =~ /(?<![a-z0-9])#{Regexp.escape(k)}/
+        end
+      end
+      nil
+    end
+
+    def world_bbox(defn, tr)
+      bb = defn.bounds
+      pts = (0..7).map { |i| bb.corner(i).transform(tr) }
+      mn = [pts.map(&:x).min, pts.map(&:y).min, pts.map(&:z).min].map(&:to_f)
+      mx = [pts.map(&:x).max, pts.map(&:y).max, pts.map(&:z).max].map(&:to_f)
+      [mn, mx]
+    end
+
+    def add_light(e, defn, tr, clips)
+      kind = light_kind(e, defn)
+      return unless kind
+      return if @lights.length >= 500 # proteção para modelos enormes
+      mn, mx = world_bbox(defn, tr)
+      cx = (mn[0] + mx[0]) / 2.0
+      cy = (mn[1] + mx[1]) / 2.0
+      cz = (mn[2] + mx[2]) / 2.0
+      kelvin, cd, type = LIGHT_DEFAULTS[kind]
+      kelvin = attr(e, defn, 'kelvin').to_f if attr(e, defn, 'kelvin').to_f > 0
+      cd = attr(e, defn, 'candela').to_f if attr(e, defn, 'candela').to_f > 0
+      below = 1.0 / INCH_TO_M * 0.02 # 2 cm abaixo da peça, fora da carcaça
+      spots = case kind
+              when :spot
+                down = tr.zaxis.reverse
+                down.normalize! if down.length > 0
+                down = Geom::Vector3d.new(0, 0, -1) if down.length == 0 || down.z > -0.2
+                [[[cx, cy, mn[2] - below], [down.x, down.y, down.z]]]
+              when :arandela, :abajur
+                [[[cx, cy, cz], [0, 0, -1]]]
+              when :fita
+                along = (mx[0] - mn[0]) >= (mx[1] - mn[1]) ? 0 : 1
+                len = mx[along] - mn[along]
+                step = 0.3 / INCH_TO_M
+                n = [[(len / step).round, 1].max, 40].min
+                (0...n).map do |i|
+                  p = [cx, cy, cz]
+                  p[along] = mn[along] + (i + 0.5) * len / n
+                  [p, [0, 0, -1]]
+                end
+              else
+                [[[cx, cy, mn[2] - below], [0, 0, -1]]]
+              end
+      spots.each do |pos, dir|
+        next if clips.any? { |c| side(c, pos) < 0 }
+        @lights << {
+          'id' => "luz#{@lights.length + 1}", 'type' => type,
+          'position' => pos, 'direction' => dir,
+          'intensity' => cd, 'intensity_unit' => 'cd', 'color_kelvin' => kelvin, 'color' => nil,
+          'spot_beam_deg' => type == 'spot' ? 36.0 : nil,
+          'spot_field_deg' => type == 'spot' ? 60.0 : nil,
+          'radius_m' => kind == :plafon ? 0.12 : (kind == :fita ? 0.01 : 0.04),
+          'on' => true
+        }
+      end
+    end
+
+    # ---------------------------------------------------------------- faces
+    def add_face(face, tr, inherited, key, clips = [])
       mat = face.material || inherited || face.back_material
       mid = material_id(mat)
-      bkey = [key[0], mid]
-      bucket = @buckets[bkey]
-      unless bucket
-        node = "#{key[0]}_#{mid}"
-        bucket = MeshBucket.new(node, mid)
-        bucket.label = key[1]
-        bucket.category = key[2]
-        @buckets[bkey] = bucket
-      end
 
       mesh = face.mesh(0)
       pts = mesh.points.map { |p| p.transform(tr) }
@@ -119,6 +285,12 @@ module BlenditSU
         end
       end
 
+      flat = pts.map { |p| [p.x.to_f, p.y.to_f, p.z.to_f] }
+      nrms = if normals
+               normals.map { |m| [m.x.to_f, m.y.to_f, m.z.to_f] }
+             else
+               Array.new(flat.length, [n.x.to_f, n.y.to_f, n.z.to_f])
+             end
       tris = []
       mesh.polygons.each do |poly|
         idx = poly.map { |i| i.abs - 1 }
@@ -129,14 +301,36 @@ module BlenditSU
           tris << tri
         end
       end
-      flat = pts.map { |p| [p.x.to_f, p.y.to_f, p.z.to_f] }
-      if normals
-        bucket.add_smooth(flat, normals.map { |m| [m.x.to_f, m.y.to_f, m.z.to_f] }, tris)
-      else
-        bucket.add(flat, [n.x, n.y, n.z], tris)
+
+      unless clips.empty?
+        vp = []
+        vn = []
+        out_tris = []
+        tris.each do |t|
+          poly = t.map { |i| [flat[i], nrms[i]] }
+          clips.each { |c| poly = clip_poly(poly, c) if poly.length >= 3 }
+          next if poly.length < 3
+          base = vp.length
+          poly.each { |pos, nr| vp << pos; vn << nr }
+          (1...(poly.length - 1)).each { |k| out_tris << [base, base + k, base + k + 1] }
+        end
+        return if out_tris.empty?
+        flat, nrms, tris = vp, vn, out_tris
       end
+
+      bucket_for(key, mid).add_smooth(flat, nrms, tris)
       @faces += 1
       track_ground(face, pts, n)
+    end
+
+    def bucket_for(key, mid)
+      bkey = [key[0], mid]
+      @buckets[bkey] ||= begin
+        b = MeshBucket.new("#{key[0]}_#{mid}", mid)
+        b.label = key[1]
+        b.category = key[2]
+        b
+      end
     end
 
     def mirrored?(tr)
@@ -252,8 +446,15 @@ module BlenditSU
               'transparency' => transparency, 'ior' => glassy ? 1.52 : 1.45,
               'emissive' => nil, 'emissive_strength' => 0.0, 'appearance_class' => '',
               'glossiness' => nil, 'maps' => nil }
+      # Materiais da biblioteca Blendit trazem rugosidade e relevo próprios.
+      r = attr_of(mat, 'rugosidade')
+      rec['roughness'] = [[r.to_f, 0.0].max, 1.0].min if r
       tex = texture_map(mat, id)
-      rec['maps'] = { 'diffuse' => tex } if tex
+      if tex
+        rec['maps'] = { 'diffuse' => tex }
+        bump = bump_map(mat, id, tex)
+        rec['maps']['bump'] = bump if bump
+      end
       rec
     end
 
@@ -279,6 +480,22 @@ module BlenditSU
       { 'uri' => "textures/#{fname}", 'scale_m' => [w > 0 ? w : 1.0, h > 0 ? h : 1.0] }
     end
 
+    def attr_of(mat, key)
+      mat.respond_to?(:get_attribute) ? mat.get_attribute('blendit', key) : nil
+    end
+
+    # Relevo (mapa de altura) de um material da biblioteca, na mesma escala da cor.
+    def bump_map(mat, id, diffuse)
+      src = attr_of(mat, 'relevo').to_s
+      return nil if src.empty? || !File.file?(src)
+      FileUtils.mkdir_p(@tex_dir)
+      fname = "#{id}_relevo#{File.extname(src)}"
+      FileUtils.cp(src, File.join(@tex_dir, fname))
+      { 'uri' => "textures/#{fname}", 'scale_m' => diffuse['scale_m'], 'amount' => 0.35 }
+    rescue StandardError
+      nil
+    end
+
     # ---------------------------------------------------------------- spec
     def build_spec
       view = @model.active_view
@@ -298,7 +515,8 @@ module BlenditSU
         'framing_margin' => 1.0,
         'shift_x' => 0.0,
         'shift_y' => 0.0,
-        'frame' => 'view' # reproduz o enquadramento exato do SketchUp
+        'frame' => 'view', # reproduz o enquadramento exato do SketchUp
+        'crop_aspect' => aspect
       }
       if cam.perspective?
         fov = cam.fov.to_f
@@ -342,8 +560,9 @@ module BlenditSU
         'materials' => @mat_order,
         'camera' => camera,
         'sun' => sun_spec,
-        'lights' => [],
-        'world' => { 'sky_type' => 'nishita', 'hdri_uri' => nil, 'strength' => 1.0,
+        'lights' => @lights,
+        'world' => { 'sky_type' => 'nishita', 'hdri_uri' => nil,
+                     'strength' => @opts[:noite] ? 0.02 : 1.0,
                      'ground_albedo' => [0.3, 0.3, 0.3], 'has_site' => has_site?,
                      'ground_under_site' => true },
         'render' => {
@@ -355,7 +574,7 @@ module BlenditSU
           'film_transparent' => false,
           'view_transform' => 'AgX',
           'exposure' => 0.0
-        }
+        }.merge(@section_used ? { 'section_fill' => [0.06, 0.06, 0.06] } : {})
       }
     end
 
@@ -363,7 +582,8 @@ module BlenditSU
     def sun_spec
       si = @model.shadow_info
       d = si['SunDirection'] # aponta PARA o sol, nos eixos do modelo
-      base = { 'strength' => 1.0, 'angle_degrees' => 0.526, 'color' => nil,
+      # Cena noturna: sol apagado e céu quase escuro - só as luminárias iluminam.
+      base = { 'strength' => @opts[:noite] ? 0.0 : 1.0, 'angle_degrees' => 0.526, 'color' => nil,
                'daylight_saving' => false, 'latitude' => nil, 'longitude' => nil,
                'date' => nil, 'time' => nil, 'timezone' => nil,
                'azimuth_degrees' => nil, 'altitude_degrees' => nil }

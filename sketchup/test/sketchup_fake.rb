@@ -34,6 +34,7 @@ module Geom
     end
     def transform(t) = t.apply_vector(self)
     def to_a = [x, y, z]
+    def reverse = Vector3d.new(-x, -y, -z)
   end
 
   class Point3d
@@ -90,10 +91,19 @@ module Geom
     end
     def width = @mx[0] - @mn[0]
     def height = @mx[1] - @mn[1]
+    def corner(i)
+      Point3d.new(i & 1 == 0 ? @mn[0] : @mx[0], i & 2 == 0 ? @mn[1] : @mx[1],
+                  i & 4 == 0 ? @mn[2] : @mx[2])
+    end
   end
 end
 
 module Sketchup
+  module Attrs
+    def set_attribute(dict, k, v) = ((@attrs ||= {})[[dict, k]] = v)
+    def get_attribute(dict, k, d = nil) = (@attrs || {}).fetch([dict, k], d)
+  end
+
   @next_id = 0
   def self.next_id = (@next_id += 1)
   def self.version = '25.0.fake'
@@ -116,6 +126,7 @@ module Sketchup
   end
 
   class Material
+    include Attrs
     attr_reader :name, :color, :alpha, :texture
     def initialize(name, rgb, alpha: 1.0, texture: nil)
       @name = name; @color = Color.new(*rgb); @alpha = alpha; @texture = texture
@@ -174,8 +185,14 @@ module Sketchup
     end
   end
 
+  class SectionPlane
+    def initialize(plane) = (@plane = plane)
+    def get_plane = @plane
+  end
+
   class Entities
     include Enumerable
+    attr_accessor :active_section_plane
     def initialize
       @list = []; @verts = {}; @edges = {}
     end
@@ -201,13 +218,21 @@ module Sketchup
   end
 
   class ComponentDefinition
+    include Attrs
     attr_reader :name, :entities
     def initialize(name)
       @name = name; @entities = Entities.new
     end
+    def bounds
+      ps = @entities.flat_map { |f| f.respond_to?(:vertices) ? f.vertices.map(&:position) : [] }
+      mn = [ps.map(&:x).min, ps.map(&:y).min, ps.map(&:z).min]
+      mx = [ps.map(&:x).max, ps.map(&:y).max, ps.map(&:z).max]
+      Geom::BoundingBox.new(mn, mx)
+    end
   end
 
   class ComponentInstance
+    include Attrs
     attr_accessor :material, :layer, :hidden, :name
     attr_reader :definition, :transformation, :entityID
     def initialize(defn, tr, name: '')
@@ -246,11 +271,42 @@ module Sketchup
     def to_a = []
   end
 
+  # Sol aproximado (só para teste): horário local = componentes "UTC" do Time.
+  class ShadowInfo
+    def initialize(dir)
+      @h = { 'Latitude' => -22.78, 'Longitude' => -47.29, 'TZOffset' => -3.0,
+             'City' => 'Nova Odessa', 'Country' => 'Brasil', 'NorthAngle' => 0.0,
+             'ShadowTime' => Time.gm(2026, 10, 17, 15, 0) }
+      @fixed = dir
+    end
+    def [](k)
+      return (@fixed || sun_dir) if k == 'SunDirection'
+      @h[k]
+    end
+    def []=(k, v)
+      @fixed = nil if k == 'ShadowTime'
+      @h[k] = v
+    end
+    def sun_dir
+      t = @h['ShadowTime']; lat = @h['Latitude'] * Math::PI / 180
+      doy = t.yday
+      decl = 23.44 * Math.sin(2 * Math::PI * (284 + doy) / 365.0) * Math::PI / 180
+      solar = t.hour + t.min / 60.0 + (@h['Longitude'] - 15 * @h['TZOffset']) / 15.0
+      ha = (solar - 12) * 15 * Math::PI / 180
+      alt = Math.asin(Math.sin(lat) * Math.sin(decl) + Math.cos(lat) * Math.cos(decl) * Math.cos(ha))
+      az = Math.atan2(-Math.sin(ha), Math.tan(decl) * Math.cos(lat) - Math.sin(lat) * Math.cos(ha))
+      Geom::Vector3d.new(Math.sin(az) * Math.cos(alt), Math.cos(az) * Math.cos(alt), Math.sin(alt))
+    end
+  end
+
   class Model
+    include Attrs
+    def start_operation(*) = true
+    def abort_operation = true
     attr_reader :entities, :active_view, :shadow_info, :rendering_options, :pages, :title
     def initialize(title, cam, sun_dir, bounds)
       @title = title; @entities = Entities.new; @active_view = View.new(cam)
-      @shadow_info = { 'SunDirection' => sun_dir }
+      @shadow_info = ShadowInfo.new(sun_dir)
       @rendering_options = { 'FaceFrontColor' => Color.new(235, 235, 230) }
       @pages = Pages.new; @bounds = bounds
     end

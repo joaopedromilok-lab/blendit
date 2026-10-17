@@ -68,6 +68,11 @@ def prepare_scene(loaded, spec):
 
     mode = str(spec.get("render", {}).get("mode", "realistic"))
     get_preset(mode)(loaded, spec)
+    try:
+        from .section_fill import apply_section_fill   # a cut model's poché
+        apply_section_fill(loaded, spec)
+    except Exception:
+        pass
 
     # Gate the artificial lights by mode (lit modes show, drawing/clay hide). One
     # choke point instead of a call in every preset; the Live master toggle
@@ -149,3 +154,18 @@ def _apply_overrides(spec, overrides):
     if overrides.get("two_point") is not None:
         spec.setdefault("camera", {})["two_point_perspective"] = bool(
             overrides["two_point"])
+    # Sun study: an explicit date / time re-computes the sun from the SITE
+    # (latitude / longitude / timezone already in the spec). Direct angles and a
+    # fixed vector would win over the clock, so they are dropped for this render.
+    if overrides.get("sun_date") or overrides.get("sun_time"):
+        sun = spec.setdefault("sun", {})
+        if overrides.get("sun_date"):
+            sun["date"] = str(overrides["sun_date"])
+        if overrides.get("sun_time"):
+            sun["time"] = str(overrides["sun_time"])
+        sun["azimuth_degrees"] = None
+        sun["altitude_degrees"] = None
+        sun["mode"] = "geographic"
+        if sun.get("latitude") is None or sun.get("longitude") is None:
+            print("[Blendit] --sun-date/--sun-time need the site location "
+                  "(latitude/longitude) in the bundle; the sun stays as exported.")

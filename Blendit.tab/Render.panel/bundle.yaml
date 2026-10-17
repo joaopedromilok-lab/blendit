@@ -14,6 +14,9 @@ layout:
   - Resolution         # output size
   - Engine             # Cycles / EEVEE toggle
   - "---"
+  - Insolacao          # sun study: 9 shadow renders + board (pt-BR)
+  - Prancha            # presentation board PDF from chosen renders
+  - "---"
   - OpenRenders        # open the output folder
   - Settings           # configure everything
   - About              # project info + GitHub + portfolio links

@@ -9,7 +9,7 @@ module BlenditSU
     ext.description = 'Renderiza a vista do SketchUp no Blender com um clique: ' \
                       'realista, maquete branca, estudo de sombras, croqui, aquarela e mais 11 estilos. ' \
                       'Baseado no Blendit (MIT) de lewismconte.'
-    ext.version = '0.1.0'
+    ext.version = '0.2.0'
     ext.creator = 'Blendit (lewismconte) - adaptação para SketchUp'
     ext.copyright = 'Licença MIT'
     Sketchup.register_extension(ext, true)

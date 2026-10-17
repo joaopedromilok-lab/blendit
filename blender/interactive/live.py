@@ -708,6 +708,11 @@ def _apply_mode(mode):
     apply_look(_SPEC)
     setup_world(_SPEC, _SCALE)
     get_preset(mode)(_LOADED, _SPEC)
+    try:                                   # presets rebuild materials: re-fill the cut
+        from blender.pipeline.section_fill import apply_section_fill
+        apply_section_fill(_LOADED, _SPEC)
+    except Exception:
+        pass
     # Gate the artificial lights by mode (mirrors prepare_scene). WITHOUT this,
     # switching realistic -> an NPR mode in Live View left the lamps visible, and
     # they washed out the EEVEE Shader-to-RGB tone the drawing looks derive from

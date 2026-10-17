@@ -1,0 +1,4 @@
+# Metadados em pt-BR (os mesmos do script.py), em YAML UTF-8.
+title: "Prancha"
+tooltip: |
+  Monta uma prancha em PDF (A4 a A1) com os renders escolhidos e carimbo das Informações do projeto.

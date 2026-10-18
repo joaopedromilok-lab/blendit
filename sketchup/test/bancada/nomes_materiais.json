@@ -1,0 +1,901 @@
+{
+ "versao": 1,
+ "descricao": "Nomes reais de materiais de projetos brasileiros com a classificação esperada. 'aceitas' usa as categorias atuais do Blendit (null = não texturizar); tipo/acabamento/medida descrevem o produto. Usado por bancada_classificador.rb.",
+ "itens": [
+  {
+   "nome": "Porcelanato Linho Bege 60x120 ACET",
+   "cor": [
+    205,
+    195,
+    178
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "piso"
+   ],
+   "tipo_produto": "porcelanato",
+   "acabamento": "acetinado",
+   "medida_cm": [
+    60,
+    120
+   ],
+   "nota": "linho é padrão visual, não tecido"
+  },
+  {
+   "nome": "Porcelanato Travertino Romano 90x90",
+   "cor": [
+    214,
+    200,
+    176
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "piso"
+   ],
+   "tipo_produto": "porcelanato",
+   "acabamento": null,
+   "medida_cm": [
+    90,
+    90
+   ],
+   "nota": "travertino é padrão; produto é porcelanato de piso"
+  },
+  {
+   "nome": "Porcelanato Calacata Oro POL 120x120",
+   "cor": [
+    235,
+    232,
+    226
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "piso"
+   ],
+   "tipo_produto": "porcelanato",
+   "acabamento": "polido",
+   "medida_cm": [
+    120,
+    120
+   ],
+   "nota": ""
+  },
+  {
+   "nome": "Porcelanato Cimenticio Grafite NAT 60x60",
+   "cor": [
+    110,
+    110,
+    108
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "piso",
+    "concreto"
+   ],
+   "tipo_produto": "porcelanato",
+   "acabamento": "fosco",
+   "medida_cm": [
+    60,
+    60
+   ],
+   "nota": ""
+  },
+  {
+   "nome": "Porcelanato Madeira Carvalho 20x120",
+   "cor": [
+    170,
+    130,
+    90
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "piso_madeira",
+    "piso"
+   ],
+   "tipo_produto": "porcelanato",
+   "acabamento": null,
+   "medida_cm": [
+    20,
+    120
+   ],
+   "nota": "porcelanato amadeirado"
+  },
+  {
+   "nome": "Porcelanato acetinado 60x60",
+   "cor": [
+    200,
+    195,
+    185
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "piso"
+   ],
+   "tipo_produto": "porcelanato",
+   "acabamento": "acetinado",
+   "medida_cm": [
+    60,
+    60
+   ],
+   "nota": ""
+  },
+  {
+   "nome": "Piso vinílico carvalho",
+   "cor": [
+    165,
+    125,
+    85
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "piso_madeira"
+   ],
+   "tipo_produto": "vinilico",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Piso laminado Durafloor Nogueira",
+   "cor": [
+    110,
+    75,
+    50
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "piso_madeira"
+   ],
+   "tipo_produto": "laminado de piso",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Assoalho de cumaru",
+   "cor": [
+    140,
+    90,
+    55
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "piso_madeira"
+   ],
+   "tipo_produto": "madeira macica",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Taco espinha de peixe",
+   "cor": [
+    160,
+    115,
+    75
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "piso_madeira"
+   ],
+   "tipo_produto": "madeira macica",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Pedra São Tomé",
+   "cor": [
+    215,
+    200,
+    170
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "piso",
+    "bancada"
+   ],
+   "tipo_produto": "pedra natural",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": "pedra de piso; hoje a categoria pedra é 'bancada'"
+  },
+  {
+   "nome": "Pedra Portuguesa",
+   "cor": [
+    225,
+    222,
+    215
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "piso",
+    "bancada"
+   ],
+   "tipo_produto": "pedra natural",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": "calçamento"
+  },
+  {
+   "nome": "Granito Preto São Gabriel polido",
+   "cor": [
+    35,
+    35,
+    35
+   ],
+   "uso": "outro",
+   "aceitas": [
+    "bancada"
+   ],
+   "tipo_produto": "pedra natural",
+   "acabamento": "polido",
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Mármore Carrara polido",
+   "cor": [
+    225,
+    225,
+    222
+   ],
+   "uso": "outro",
+   "aceitas": [
+    "bancada"
+   ],
+   "tipo_produto": "pedra natural",
+   "acabamento": "polido",
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Quartzo branco",
+   "cor": [
+    240,
+    240,
+    238
+   ],
+   "uso": "outro",
+   "aceitas": [
+    "bancada"
+   ],
+   "tipo_produto": "quartzo",
+   "acabamento": "polido",
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Bancada Dekton",
+   "cor": [
+    200,
+    200,
+    198
+   ],
+   "uso": "outro",
+   "aceitas": [
+    "bancada"
+   ],
+   "tipo_produto": "superficie ultracompacta",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Granilite",
+   "cor": [
+    210,
+    205,
+    198
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "piso"
+   ],
+   "tipo_produto": "granilite",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": "biblioteca tem granilite, sem categoria"
+  },
+  {
+   "nome": "Ladrilho hidráulico",
+   "cor": [
+    180,
+    170,
+    160
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "piso"
+   ],
+   "tipo_produto": "ladrilho",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": "sem categoria pelo nome; o uso (piso) decide"
+  },
+  {
+   "nome": "Pastilha de vidro",
+   "cor": [
+    90,
+    150,
+    170
+   ],
+   "uso": "parede",
+   "aceitas": [
+    "piso"
+   ],
+   "tipo_produto": "pastilha",
+   "acabamento": "polido",
+   "medida_cm": null,
+   "nota": "sem categoria hoje; aceita 'piso' (revestimento)"
+  },
+  {
+   "nome": "Azulejo metrô branco 7,5x15",
+   "cor": [
+    240,
+    240,
+    236
+   ],
+   "uso": "parede",
+   "aceitas": [
+    "piso"
+   ],
+   "tipo_produto": "ceramica de parede",
+   "acabamento": "polido",
+   "medida_cm": [
+    7.5,
+    15
+   ],
+   "nota": "biblioteca tem metrô fora da categoria"
+  },
+  {
+   "nome": "Revestimento 3D gesso",
+   "cor": [
+    235,
+    233,
+    228
+   ],
+   "uso": "parede",
+   "aceitas": [
+    "reboco",
+    null
+   ],
+   "tipo_produto": "gesso",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": "não é piso"
+  },
+  {
+   "nome": "Textura Madeira Freijó",
+   "cor": [
+    190,
+    150,
+    105
+   ],
+   "uso": "outro",
+   "aceitas": [
+    "madeira"
+   ],
+   "tipo_produto": "madeira",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": "'textura' não indica reboco"
+  },
+  {
+   "nome": "Madeira freijó",
+   "cor": [
+    190,
+    150,
+    105
+   ],
+   "uso": "outro",
+   "aceitas": [
+    "madeira"
+   ],
+   "tipo_produto": "madeira",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "MDF Branco TX",
+   "cor": [
+    242,
+    242,
+    240
+   ],
+   "uso": "outro",
+   "aceitas": [
+    null
+   ],
+   "tipo_produto": "mdf liso",
+   "acabamento": "fosco",
+   "medida_cm": null,
+   "nota": "branco liso: não deve ganhar veio de madeira"
+  },
+  {
+   "nome": "MDF Carvalho Hanover",
+   "cor": [
+    170,
+    130,
+    90
+   ],
+   "uso": "outro",
+   "aceitas": [
+    "madeira"
+   ],
+   "tipo_produto": "mdf amadeirado",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Laminado Duratex Carvalho Hanover",
+   "cor": [
+    170,
+    130,
+    90
+   ],
+   "uso": "outro",
+   "aceitas": [
+    "madeira"
+   ],
+   "tipo_produto": "chapa de marcenaria",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": "uso: móvel, não piso"
+  },
+  {
+   "nome": "Laca branca fosca",
+   "cor": [
+    245,
+    245,
+    243
+   ],
+   "uso": "outro",
+   "aceitas": [
+    null
+   ],
+   "tipo_produto": "laca",
+   "acabamento": "fosco",
+   "medida_cm": null,
+   "nota": "pintura lisa"
+  },
+  {
+   "nome": "Laca azul alto brilho",
+   "cor": [
+    40,
+    70,
+    140
+   ],
+   "uso": "outro",
+   "aceitas": [
+    null
+   ],
+   "tipo_produto": "laca",
+   "acabamento": "polido",
+   "medida_cm": null,
+   "nota": "pintura lisa"
+  },
+  {
+   "nome": "Painel Ripado Freijó",
+   "cor": [
+    190,
+    150,
+    105
+   ],
+   "uso": "parede",
+   "aceitas": [
+    "madeira"
+   ],
+   "tipo_produto": "madeira",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Lambri de madeira",
+   "cor": [
+    175,
+    135,
+    95
+   ],
+   "uso": "parede",
+   "aceitas": [
+    "madeira"
+   ],
+   "tipo_produto": "madeira",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Tecido linho cru",
+   "cor": [
+    210,
+    200,
+    180
+   ],
+   "uso": "estofado",
+   "aceitas": [
+    "tecido"
+   ],
+   "tipo_produto": "tecido",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Veludo verde",
+   "cor": [
+    50,
+    90,
+    60
+   ],
+   "uso": "estofado",
+   "aceitas": [
+    "tecido"
+   ],
+   "tipo_produto": "tecido",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Bouclê off white",
+   "cor": [
+    235,
+    230,
+    220
+   ],
+   "uso": "estofado",
+   "aceitas": [
+    "tecido"
+   ],
+   "tipo_produto": "tecido",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Couro ecológico caramelo",
+   "cor": [
+    160,
+    100,
+    55
+   ],
+   "uso": "estofado",
+   "aceitas": [
+    "couro"
+   ],
+   "tipo_produto": "couro",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Carpete cinza",
+   "cor": [
+    130,
+    130,
+    130
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "tecido"
+   ],
+   "tipo_produto": "carpete",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Tapete Kilim",
+   "cor": [
+    160,
+    90,
+    70
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "tecido"
+   ],
+   "tipo_produto": "tapete",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Palhinha indiana",
+   "cor": [
+    205,
+    175,
+    125
+   ],
+   "uso": "outro",
+   "aceitas": [
+    "madeira",
+    null
+   ],
+   "tipo_produto": "palhinha",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": "biblioteca tem palhinha, sem categoria"
+  },
+  {
+   "nome": "Rattan natural",
+   "cor": [
+    190,
+    150,
+    100
+   ],
+   "uso": "outro",
+   "aceitas": [
+    "madeira",
+    null
+   ],
+   "tipo_produto": "rattan",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": "sem categoria hoje"
+  },
+  {
+   "nome": "Tijolinho branco",
+   "cor": [
+    235,
+    232,
+    225
+   ],
+   "uso": "parede",
+   "aceitas": [
+    "tijolo"
+   ],
+   "tipo_produto": "tijolo",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Tijolo aparente",
+   "cor": [
+    160,
+    85,
+    60
+   ],
+   "uso": "parede",
+   "aceitas": [
+    "tijolo"
+   ],
+   "tipo_produto": "tijolo",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Concreto aparente",
+   "cor": [
+    150,
+    150,
+    145
+   ],
+   "uso": "parede",
+   "aceitas": [
+    "concreto"
+   ],
+   "tipo_produto": "concreto",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Cimento queimado",
+   "cor": [
+    140,
+    138,
+    135
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "concreto"
+   ],
+   "tipo_produto": "cimento",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Microcimento",
+   "cor": [
+    185,
+    180,
+    172
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "concreto"
+   ],
+   "tipo_produto": "cimento",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Grafiato",
+   "cor": [
+    220,
+    215,
+    205
+   ],
+   "uso": "parede",
+   "aceitas": [
+    "reboco"
+   ],
+   "tipo_produto": "textura de parede",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Pintura acrílica branco gelo",
+   "cor": [
+    240,
+    240,
+    236
+   ],
+   "uso": "parede",
+   "aceitas": [
+    "parede",
+    null
+   ],
+   "tipo_produto": "pintura",
+   "acabamento": "fosco",
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Papel de parede floral",
+   "cor": [
+    200,
+    190,
+    180
+   ],
+   "uso": "parede",
+   "aceitas": [
+    "parede",
+    null
+   ],
+   "tipo_produto": "papel de parede",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Inox escovado",
+   "cor": [
+    180,
+    180,
+    182
+   ],
+   "uso": "outro",
+   "aceitas": [
+    "metal"
+   ],
+   "tipo_produto": "metal",
+   "acabamento": "escovado",
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Aço corten",
+   "cor": [
+    130,
+    70,
+    40
+   ],
+   "uso": "parede",
+   "aceitas": [
+    "metal"
+   ],
+   "tipo_produto": "metal oxidado",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Latão escovado",
+   "cor": [
+    180,
+    150,
+    90
+   ],
+   "uso": "outro",
+   "aceitas": [
+    "metal"
+   ],
+   "tipo_produto": "metal",
+   "acabamento": "escovado",
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Vidro reflecta",
+   "cor": [
+    120,
+    140,
+    150
+   ],
+   "uso": "outro",
+   "aceitas": [
+    null
+   ],
+   "tipo_produto": "vidro",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Espelho bronze",
+   "cor": [
+    150,
+    120,
+    90
+   ],
+   "uso": "outro",
+   "aceitas": [
+    null
+   ],
+   "tipo_produto": "espelho",
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": ""
+  },
+  {
+   "nome": "Cor_M05",
+   "cor": [
+    128,
+    126,
+    122
+   ],
+   "uso": "piso",
+   "aceitas": [
+    "piso"
+   ],
+   "tipo_produto": null,
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": "nome genérico, uso de piso"
+  },
+  {
+   "nome": "Color_A12",
+   "cor": [
+    160,
+    115,
+    70
+   ],
+   "uso": "outro",
+   "aceitas": [
+    "madeira",
+    null
+   ],
+   "tipo_produto": null,
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": "genérico, cor de madeira: só certeza baixa"
+  },
+  {
+   "nome": "Material12",
+   "cor": [
+    110,
+    112,
+    118
+   ],
+   "uso": "estofado",
+   "aceitas": [
+    "tecido"
+   ],
+   "tipo_produto": null,
+   "acabamento": null,
+   "medida_cm": null,
+   "nota": "genérico, dentro de sofá"
+  }
+ ]
+}

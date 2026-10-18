@@ -200,6 +200,30 @@ rescue ArgumentError
   true
 end)
 
+# ------------------------------------------------------------------ 8b. formatos inesperados do ambientCG (achado no teste real)
+# A API (PHP) devolve [] no lugar de {} vazio; um registro estranho não pode derrubar a fonte.
+estranhos = [acg_asset('Ok001'),
+             acg_asset('SemDownloads001').merge('downloadFolders' => [], 'previewImage' => []),
+             acg_asset('TagsTexto001').merge('tags' => 'a,b', 'maps' => nil),
+             acg_asset('DimEstranha001').merge('dimensionX' => {}, 'dimensionY' => []),
+             acg_asset('PastaVazia001').merge('downloadFolders' => { 'default' => [] })]
+CO.http = lambda do |url|
+  next JSON.generate(PH) if url.include?('polyhaven')
+  off = url[/offset=(\d+)/, 1].to_i
+  JSON.generate('numberOfResults' => estranhos.length.to_s, 'foundAssets' => off.zero? ? estranhos : [])
+end
+r10 = CO.atualizar(File.join(DIR, 'estranho'), 250)
+confere('ambientCG com [] no lugar de {} e campos de tipo errado: a fonte não falha',
+        r10['ambientcg'][:ok], r10['ambientcg'].inspect)
+u10 = CO.unificado(File.join(DIR, 'estranho')).select { |x| x['fonte'] == 'ambientcg' && !x['legado'] }
+confere('... e os registros aproveitáveis entram (sem downloads/miniatura = campos vazios)',
+        %w[Ok001 SemDownloads001 TagsTexto001 DimEstranha001 PastaVazia001].all? { |i| u10.any? { |x| x['id'] == i } },
+        u10.map { |x| x['id'] }.inspect)
+sd = u10.find { |x| x['id'] == 'SemDownloads001' }
+confere('... registro sem downloads fica com resoluções vazias e miniatura padrão',
+        sd && sd['resolucoes'] == {} && sd['miniatura'].include?('SemDownloads001'))
+confere('numberOfResults como texto ("5") é aceito', r10['ambientcg'][:total] >= 4)
+
 # ------------------------------------------------------------------ 9. consulta
 CO.http = servidor
 CO.atualizar(DIR, 2)

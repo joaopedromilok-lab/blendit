@@ -1,2 +1,2 @@
-- Novo: Blendit > Atualizar catálogo online de texturas. Consulta as listas oficiais do Poly Haven e do ambientCG (milhares de materiais CC0) e guarda nomes, categorias, miniaturas, mapas e licença no computador - sem baixar nenhuma textura. Sem internet, vale o que já foi catalogado.
-- Nesta versão os materiais novos ficam só catalogados: a galeria e o modo Automático continuam com a biblioteca de sempre.
+- Correção: a atualização do catálogo online falhava no ambientCG ("no implicit conversion of String into Integer") quando a API mandava listas vazias no lugar de dados. Agora um item com formato inesperado é ignorado sozinho e o resto do catálogo entra.
+- (0.4.5) Blendit > Atualizar catálogo online de texturas (Poly Haven + ambientCG, só a lista - nenhuma textura).

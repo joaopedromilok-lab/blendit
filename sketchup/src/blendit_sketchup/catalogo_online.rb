@@ -176,33 +176,21 @@ module BlenditSU
       total = nil
       MAX_PAGINAS.times do
         dados = json(format(ACG_LISTA, por_pagina, offset))
-        unless dados.is_a?(Hash) && dados['foundAssets'].is_a?(Array) && dados['numberOfResults'].is_a?(Integer)
+        n = dados.is_a?(Hash) ? dados['numberOfResults'] : nil
+        n = n.to_i if n.is_a?(String) && n =~ /\A\d+\z/
+        unless dados.is_a?(Hash) && dados['foundAssets'].is_a?(Array) && n.is_a?(Integer)
           raise ErroFonte, "ambientCG: resposta incompleta (offset #{offset})"
         end
-        total ||= dados['numberOfResults']
+        total ||= n
         pagina = dados['foundAssets']
         pagina.each do |a|
-          id = a.is_a?(Hash) ? a['assetId'] : nil
-          next fora << "#{id.inspect}: registro inválido" unless id.is_a?(String) && id =~ /\A[A-Za-z0-9_\-]+\z/
-          next fora << "#{id}: não é Material (#{a['dataType'].inspect})" unless a['dataType'] == 'Material'
-          next if itens.key?(id)                       # repetido entre páginas
-          dl = acg_downloads(a)
-          prev = a['previewImage'].is_a?(Hash) ? a['previewImage'] : {}
-          dx = a['dimensionX'].to_f
-          dy = a['dimensionY'].to_f
-          itens[id] = item('ambientcg', id,
-                           'nome' => (a['displayName'].to_s.strip.empty? ? id : a['displayName'].to_s.strip),
-                           'categoria' => a['displayCategory'].is_a?(String) ? a['displayCategory'] : nil,
-                           'categorias' => [a['displayCategory']].grep(String),
-                           'tags' => Array(a['tags']).grep(String),
-                           'miniatura' => url_ok(prev['256-PNG']) || format(Texturas::ACG_THUMB, id),
-                           # dimensionX/Y: a documentação não informa a unidade - guardado cru.
-                           'dimensoes_brutas' => dx > 0 && dy > 0 ? [dx, dy] : nil,
-                           'mapas' => Array(a['maps']).grep(String),
-                           'resolucoes' => dl,
-                           'metodo' => a['creationMethod'].is_a?(String) ? a['creationMethod'] : nil,
-                           'publicado' => a['releaseDate'].is_a?(String) ? a['releaseDate'] : nil,
-                           'pagina' => format(ACG_PAGINA, id))
+          # Um registro com formato inesperado é descartado sozinho - nunca
+          # derruba a fonte inteira (a API PHP devolve [] no lugar de {} vazio).
+          begin
+            acg_item(a, itens, fora)
+          rescue StandardError => e
+            fora << "#{(a.is_a?(Hash) ? a['assetId'] : nil).inspect}: formato inesperado (#{e.class})"
+          end
         end
         offset += por_pagina
         break if pagina.empty? || offset >= total
@@ -210,8 +198,32 @@ module BlenditSU
       [itens.values, fora, total]
     end
 
+    def self.acg_item(a, itens, fora)
+      id = a.is_a?(Hash) ? a['assetId'] : nil
+      return fora << "#{id.inspect}: registro inválido" unless id.is_a?(String) && id =~ /\A[A-Za-z0-9_\-]+\z/
+      return fora << "#{id}: não é Material (#{a['dataType'].inspect})" unless a['dataType'] == 'Material'
+      return if itens.key?(id)                       # repetido entre páginas
+      dl = acg_downloads(a)
+      prev = a['previewImage'].is_a?(Hash) ? a['previewImage'] : {}
+      dx = a['dimensionX'].is_a?(Numeric) ? a['dimensionX'].to_f : 0.0
+      dy = a['dimensionY'].is_a?(Numeric) ? a['dimensionY'].to_f : 0.0
+      itens[id] = item('ambientcg', id,
+                       'nome' => (a['displayName'].to_s.strip.empty? ? id : a['displayName'].to_s.strip),
+                       'categoria' => a['displayCategory'].is_a?(String) ? a['displayCategory'] : nil,
+                       'categorias' => [a['displayCategory']].grep(String),
+                       'tags' => Array(a['tags']).grep(String),
+                       'miniatura' => url_ok(prev['256-PNG']) || format(Texturas::ACG_THUMB, id),
+                       # dimensionX/Y: a documentação não informa a unidade - guardado cru.
+                       'dimensoes_brutas' => dx > 0 && dy > 0 ? [dx, dy] : nil,
+                       'mapas' => Array(a['maps']).grep(String),
+                       'resolucoes' => dl,
+                       'metodo' => a['creationMethod'].is_a?(String) ? a['creationMethod'] : nil,
+                       'publicado' => a['releaseDate'].is_a?(String) ? a['releaseDate'] : nil,
+                       'pagina' => format(ACG_PAGINA, id))
+    end
+
     def self.acg_downloads(a)
-      lista = a.dig('downloadFolders', 'default', 'downloadFiletypeCategories', 'zip', 'downloads')
+      lista = cavar(a, 'downloadFolders', 'default', 'downloadFiletypeCategories', 'zip', 'downloads')
       return {} unless lista.is_a?(Array)
       lista.each_with_object({}) do |d, h|
         next unless d.is_a?(Hash) && d['attribute'].is_a?(String) && url_ok(d['downloadLink'])
@@ -225,6 +237,15 @@ module BlenditSU
       { 'chave' => "#{fonte == 'polyhaven' ? 'ph' : 'acg'}:#{id}", 'fonte' => fonte, 'id' => id,
         'licenca' => lic['licenca'], 'licenca_origem' => lic['fonte'], 'credito' => lic['credito'],
         'legado' => false }.merge(campos)
+    end
+
+    # dig tolerante: um nível que não é Hash (ex.: [] vazio) devolve nil.
+    def self.cavar(obj, *chaves)
+      chaves.each do |k|
+        return nil unless obj.is_a?(Hash)
+        obj = obj[k]
+      end
+      obj
     end
 
     def self.url_ok(u)

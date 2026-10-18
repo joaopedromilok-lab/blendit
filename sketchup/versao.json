@@ -1,5 +1,5 @@
 {
-  "versao": "0.4.6",
+  "versao": "0.4.7",
   "rbz": "https://raw.githubusercontent.com/joaopedromilok-lab/blendit/main/sketchup/release/blendit_sketchup.rbz",
-  "novidades": "- Correção: a atualização do catálogo online falhava no ambientCG (\"no implicit conversion of String into Integer\") quando a API mandava listas vazias no lugar de dados. Agora um item com formato inesperado é ignorado sozinho e o resto do catálogo entra.\n- (0.4.5) Blendit > Atualizar catálogo online de texturas (Poly Haven + ambientCG, só a lista - nenhuma textura)."
+  "novidades": "- Arandelas e luzes de quadro agora acendem: a luz sai por baixo da peça (antes ficava dentro da carcaça e a própria luminária a bloqueava). Atributo blendit \"facho = duplo\" acende para cima também.\n- Mais nomes reconhecidos como luminária: luz de quadro, picture light, wall lamp, spot de trilho, iluminação.\n- A barra inferior mostra quantas luzes de luminárias foram reconhecidas na cena."
 }

@@ -192,19 +192,20 @@ module BlenditSU
     LIGHT_RULES = [
       [:fita,     ['fita led', 'fita de led', 'led strip', 'perfil led', 'perfil de led']],
       [:pendente, ['pendente', 'pendant', 'lustre', 'chandelier']],
+      [:arandela, ['arandela', 'sconce', 'wall light', 'wall lamp', 'picture light', 'luz de quadro',
+                   'luminaria de quadro', 'iluminacao de quadro']],
       [:spot,     ['spot', 'embutido', 'downlight', 'dicroica', 'dicroico', 'ar70', 'ar111',
-                   'par20', 'par30', 'balizador']],
+                   'par20', 'par30', 'balizador', 'trilho', 'track light']],
       [:plafon,   ['plafon', 'plafom', 'plafonier', 'ceiling light', 'painel led', 'painel de led']],
-      [:arandela, ['arandela', 'sconce', 'wall light']],
       [:abajur,   ['abajur', 'luminaria de mesa', 'luminaria de piso', 'luminaria de chao',
                    'luminaria de coluna', 'table lamp', 'floor lamp']],
-      [:generica, ['luminaria', 'lampada', 'lamp', 'light', 'luz']]
+      [:generica, ['luminaria', 'lampada', 'lamp', 'light', 'luz', 'iluminacao']]
     ].freeze
 
     # [kelvin, candela, tipo]
     LIGHT_DEFAULTS = {
       spot: [3000, 2500, 'spot'], pendente: [2700, 1300, 'point'], plafon: [3000, 2000, 'point'],
-      arandela: [2700, 800, 'point'], abajur: [2700, 700, 'point'], generica: [3000, 1300, 'point'],
+      arandela: [2700, 800, 'spot'], abajur: [2700, 700, 'point'], generica: [3000, 1300, 'point'],
       fita: [3000, 300, 'point']
     }.freeze
 
@@ -262,7 +263,15 @@ module BlenditSU
                 down.normalize! if down.length > 0
                 down = Geom::Vector3d.new(0, 0, -1) if down.length == 0 || down.z > -0.2
                 [[[cx, cy, mn[2] - below], [down.x, down.y, down.z]]]
-              when :arandela, :abajur
+              when :arandela
+                # Arandela / luz de quadro: a luz sai por BAIXO da peça (antes
+                # ficava no centro, dentro da carcaça, e a própria peça a
+                # bloqueava). Atributo blendit 'facho' = 'duplo' acende também
+                # para cima (arandela de facho duplo).
+                l = [[[cx, cy, mn[2] - below], [0, 0, -1]]]
+                l << [[cx, cy, mx[2] + below], [0, 0, 1]] if attr(e, defn, 'facho').to_s.downcase == 'duplo'
+                l
+              when :abajur
                 [[[cx, cy, cz], [0, 0, -1]]]
               when :fita
                 along = (mx[0] - mn[0]) >= (mx[1] - mn[1]) ? 0 : 1
@@ -283,8 +292,8 @@ module BlenditSU
           'id' => "luz#{@lights.length + 1}", 'type' => type,
           'position' => pos, 'direction' => dir,
           'intensity' => cd, 'intensity_unit' => 'cd', 'color_kelvin' => kelvin, 'color' => nil,
-          'spot_beam_deg' => type == 'spot' ? 36.0 : nil,
-          'spot_field_deg' => type == 'spot' ? 60.0 : nil,
+          'spot_beam_deg' => type == 'spot' ? (kind == :arandela ? 60.0 : 36.0) : nil,
+          'spot_field_deg' => type == 'spot' ? (kind == :arandela ? 110.0 : 60.0) : nil,
           'radius_m' => kind == :plafon ? 0.12 : (kind == :fita ? 0.01 : 0.04),
           'on' => true
         }

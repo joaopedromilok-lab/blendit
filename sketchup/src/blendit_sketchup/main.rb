@@ -207,8 +207,8 @@ module BlenditSU
     t0 = Time.now
     exp = Exporter.new(model, opts)
     spec = exp.export(dir)
-    Sketchup.status_text = format('Blendit: %d faces exportadas em %.1fs',
-                                  exp.faces, Time.now - t0)
+    Sketchup.status_text = format('Blendit: %d faces exportadas em %.1fs - %d luzes de luminárias reconhecidas',
+                                  exp.faces, Time.now - t0, exp.lights.length)
     [spec, opts]
   rescue StandardError => e
     UI.messagebox("Blendit: não foi possível exportar a cena.\n\n#{e.message}")

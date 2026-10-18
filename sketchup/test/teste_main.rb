@@ -121,7 +121,7 @@ end
 BlenditSU::Atualizacao.verificar
 puts "instalado: #{Sketchup.installed}"
 puts UI.log.last
-remote['versao'] = '0.4.4'
+remote['versao'] = '0.4.5'
 BlenditSU::Atualizacao.verificar
 puts UI.log.last
 puts "timer agendado: #{UI.timers.length}"
@@ -149,3 +149,8 @@ Sketchup.write_default('BlenditSketchUp', 'noite', '1')
 BlenditSU.render_view
 spec = Dir.glob(File.join(ENV['LOCALAPPDATA'], '**', 'scene_spec.json')).max_by { |f| File.mtime(f) }
 puts "noite: #{JSON.parse(File.read(spec))['world']['sky_type']}"
+
+puts '--- Catálogo online (sem rede)'
+BlenditSU::CatalogoOnline.http = ->(_u) { raise BlenditSU::CatalogoOnline::ErroFonte, 'sem rede no teste' }
+BlenditSU.atualizar_catalogo_online
+puts UI.log.last.lines.first(4).join

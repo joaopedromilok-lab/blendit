@@ -9,6 +9,7 @@ require_relative 'texturas'
 require_relative 'atualizacao'
 require_relative 'ceus'
 require_relative 'auto_texturas'
+require_relative 'catalogo_online'
 
 module BlenditSU
   PLUGIN_DIR = File.dirname(__FILE__).freeze
@@ -538,6 +539,34 @@ module BlenditSU
     cmd
   end
 
+  # Descoberta de texturas no Poly Haven e no ambientCG: baixa só a LISTA
+  # (nomes, categorias, miniaturas, mapas, licença), nenhuma textura.
+  def self.atualizar_catalogo_online
+    st = CatalogoOnline.estado
+    msg = "Procurar texturas novas no Poly Haven e no ambientCG?\n\n" \
+          "Baixa só a lista de materiais (alguns MB, até 1-2 minutos) - nenhuma textura.\n" \
+          "Hoje: #{st[:total]} materiais no catálogo (#{st[:legados]} da biblioteca fixa)."
+    msg += "\nÚltima atualização: #{st[:atualizado_em]}" if st[:atualizado_em]
+    return unless UI.messagebox(msg, MB_YESNO) == IDYES
+    Sketchup.status_text = 'Blendit: consultando Poly Haven e ambientCG...'
+    r = CatalogoOnline.atualizar
+    st = CatalogoOnline.estado
+    linhas = r.map do |fonte, x|
+      nome = fonte == 'polyhaven' ? 'Poly Haven' : 'ambientCG'
+      x[:ok] ? "#{nome}: #{x[:total]} materiais (#{x[:novos]} novos desde a última vez)" :
+               "#{nome}: não deu para atualizar (#{x[:erro]}) - mantidos #{x[:total]} já catalogados"
+    end
+    UI.messagebox("Catálogo: #{st[:total]} materiais.\n\n#{linhas.join("\n")}\n\n" \
+                  "Licença: CC0 nas duas fontes (Poly Haven ToS; docs.ambientcg.com/license).\n" \
+                  "Texturas da API Poly Haven (polyhaven.com) e do ambientCG (ambientcg.com).\n\n" \
+                  'Nesta versão os materiais novos ficam catalogados; a galeria e o modo ' \
+                  'Automático continuam usando a biblioteca fixa.')
+  rescue StandardError => e
+    UI.messagebox("Não foi possível atualizar o catálogo: #{e.message}")
+  ensure
+    Sketchup.status_text = ''
+  end
+
   def self.toggle(key, padrao = '0')
     set_pref(key, pref(key, padrao) == '1' ? '0' : '1')
   end
@@ -579,6 +608,7 @@ module BlenditSU
       UI.messagebox("Escolhas automáticas removidas de #{n} materiais (Ctrl+Z desfaz).")
     end
     menu.add_item('Texturas automáticas...') { AutoTexturas.show }
+    menu.add_item('Atualizar catálogo online de texturas...') { atualizar_catalogo_online }
     menu.add_item('Montar prancha com imagens de uma pasta...') { board_from_folder }
     menu.add_separator
     styles = menu.add_submenu('Estilo')

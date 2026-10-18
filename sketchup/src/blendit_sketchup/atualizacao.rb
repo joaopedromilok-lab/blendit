@@ -8,7 +8,7 @@ require 'json'
 require 'tmpdir'
 
 module BlenditSU
-  VERSION = '0.4.4'.freeze
+  VERSION = '0.4.5'.freeze
 
   module Atualizacao
     REPO_RAW = 'https://raw.githubusercontent.com/joaopedromilok-lab/blendit/main'.freeze

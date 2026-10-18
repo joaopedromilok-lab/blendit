@@ -121,7 +121,7 @@ end
 BlenditSU::Atualizacao.verificar
 puts "instalado: #{Sketchup.installed}"
 puts UI.log.last
-remote['versao'] = '0.5.0'
+remote['versao'] = '0.5.1'
 BlenditSU::Atualizacao.verificar
 puts UI.log.last
 puts "timer agendado: #{UI.timers.length}"

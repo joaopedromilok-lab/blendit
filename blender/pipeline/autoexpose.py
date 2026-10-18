@@ -10,6 +10,13 @@ real render, a tiny quick render (about a second on a GPU) measures the scene:
   * white balance: estimates the colour of the light (grey-world) and corrects
     most of it, keeping a little warmth/coolness so mood survives.
 
+The metering render sees every surface as the SAME neutral grey (only the
+base colour is swapped, for that tiny render; glass, curtains, emitters, the
+lights and the sky stay as they are). So it measures the LIGHT, not the
+design: a navy or terracotta room under the same daylight gets the same
+exposure and white balance as a grey one, instead of being brightened and
+"corrected" towards grey (blue walls came out orange and washed out).
+
 Then render.tone and render.brightness (tone.py) are applied on top.
 Photoreal modes only. render.auto_exposure = false turns it off.
 """
@@ -28,8 +35,53 @@ WB_KEEP = 0.3          # share of the light's colour cast that is kept (mood)
 WB_KEEP_NIGHT = 0.55   # lamp-lit night scenes keep more of their warmth
 
 
+# Albedo every surface gets during metering. TARGET was calibrated on light,
+# white-walled interiors measured with their real materials; 0.6 keeps that
+# calibration (the white test room meters within ~0.06 EV of before), so the
+# usual rooms keep their exposure and only coloured / dark designs stop being
+# pushed towards grey.
+NEUTRAL_ALBEDO = 0.6
+
+
+class _NeutralSurfaces:
+    """Context manager: Base Color of every Principled BSDF in the scene set to
+    a neutral grey (links cut, defaults overwritten), restored exactly on exit.
+    Transmission, alpha, emission, roughness and normals are untouched, so
+    windows still let the light in and lamps / glowing diffusers still glow."""
+
+    def __enter__(self):
+        self.saved = []
+        seen = set()
+        for obj in bpy.context.scene.objects:
+            if obj.type != "MESH":
+                continue
+            for slot in obj.material_slots:
+                mat = slot.material
+                if mat is None or mat.name in seen or not mat.node_tree:
+                    continue
+                seen.add(mat.name)
+                for node in mat.node_tree.nodes:
+                    if node.type != "BSDF_PRINCIPLED":
+                        continue
+                    sock = node.inputs["Base Color"]
+                    src = sock.links[0].from_socket if sock.is_linked else None
+                    self.saved.append((mat.node_tree, sock, src, tuple(sock.default_value)))
+                    if src is not None:
+                        mat.node_tree.links.remove(sock.links[0])
+                    sock.default_value = (NEUTRAL_ALBEDO, NEUTRAL_ALBEDO, NEUTRAL_ALBEDO, 1.0)
+        return self
+
+    def __exit__(self, *exc):
+        for tree, sock, src, value in self.saved:
+            sock.default_value = value
+            if src is not None:
+                tree.links.new(src, sock)
+        return False
+
+
 def measure(scene):
-    """-> (log-average luminance, mean linear rgb) from a tiny render."""
+    """-> (log-average luminance, mean linear rgb) from a tiny render, with
+    every surface neutral grey (see _NeutralSurfaces)."""
     r = scene.render
     keep = dict(x=r.resolution_x, y=r.resolution_y, pct=r.resolution_percentage,
                 path=r.filepath, fmt=r.image_settings.file_format)
@@ -53,7 +105,8 @@ def measure(scene):
             ee.taa_render_samples = 8
         if comp is not None:
             scene.compositing_node_group = None
-        bpy.ops.render.render(write_still=True)
+        with _NeutralSurfaces():
+            bpy.ops.render.render(write_still=True)
         img = bpy.data.images.load(tmp, check_existing=False)
         try:
             import numpy as np

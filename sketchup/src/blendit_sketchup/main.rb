@@ -194,7 +194,8 @@ module BlenditSU
              noite: extra.key?(:noite) ? extra[:noite] : night?,
              flip_section: flip_section?, interior: pref('interior', 'auto'),
              dois_pontos: pref('dois_pontos', '1') == '1',
-             tom: pref('tom', 'natural'), brilho: pref('brilho', '0').to_f }
+             tom: pref('tom', 'natural'), brilho: pref('brilho', '0').to_f,
+             materiais: pref('materiais', 'preservar') }
     m = opts[:mode].to_s
     if !opts[:noite] && %w[realistic specular].include?(m) && Ceus.escolhido != 'simulado'
       opts[:ceu] = Ceus.opcoes
@@ -563,6 +564,20 @@ module BlenditSU
     menu.add_item(c_scenes)
     menu.add_item(c_sun)
     menu.add_item(c_lib)
+    mats = menu.add_submenu('Materiais no render')
+    [['preservar', 'Preservar (como no SketchUp - padrão)'],
+     ['estrito', 'Preservar estritamente (sem nenhum ajuste automático)'],
+     ['automatico', 'Automático (textura real para materiais só-cor, só no render)']].each do |k, nome|
+      id = mats.add_item(nome) { set_pref('materiais', k) }
+      mats.set_validation_proc(id) { pref('materiais', 'preservar') == k ? MF_CHECKED : MF_UNCHECKED }
+    end
+    mats.add_separator
+    mats.add_item('Revisar sugestões...') { AutoTexturas.show }
+    mats.add_item('Limpar escolhas automáticas') do
+      m = Sketchup.active_model
+      n = m ? AutoTexturas.limpar_escolhas(m) : 0
+      UI.messagebox("Escolhas automáticas removidas de #{n} materiais (Ctrl+Z desfaz).")
+    end
     menu.add_item('Texturas automáticas...') { AutoTexturas.show }
     menu.add_item('Montar prancha com imagens de uma pasta...') { board_from_folder }
     menu.add_separator

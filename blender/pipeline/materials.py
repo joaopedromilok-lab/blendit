@@ -65,7 +65,7 @@ def _rgba(rgb, a=1.0):
     return (float(rgb[0]), float(rgb[1]), float(rgb[2]), float(a))
 
 
-def build_material(rec, engine="CYCLES", surface="auto", base_dir=None):
+def build_material(rec, engine="CYCLES", surface="auto", base_dir=None, automatic=True):
     """`surface` selects the texture source: "auto" prefers the record's real Revit
     maps (falling back to the name-matched library), "plain" forces flat colour, any
     other value forces that specific library surface (the N-panel override).
@@ -88,7 +88,11 @@ def build_material(rec, engine="CYCLES", surface="auto", base_dir=None):
 
     transparency = float(rec.get("transparency", 0.0))
     roughness = max(0.03, min(1.0, float(rec.get("roughness", 0.5))))
-    fabric = curtain_kind(rec)
+    # automatic=False ("preservar estritamente"): the material exactly as the
+    # source app defined it - no name-based surfaces, curtain or upholstery cues.
+    if not automatic and surface == "auto":
+        surface = "auto_maps_only"
+    fabric = curtain_kind(rec) if automatic else None
     if fabric:
         # Curtains are fabric, never glass - even when the source material is
         # semi-transparent.
@@ -109,6 +113,8 @@ def build_material(rec, engine="CYCLES", surface="auto", base_dir=None):
         tint = rec.get("base_color", [0.8, 0.8, 0.8])
         if surface == "plain":
             pass
+        elif surface == "auto_maps_only":
+            _build_revit_maps(nt, bsdf, rec, base_dir)
         elif surface and surface != "auto":
             material_library.build_surface(nt, bsdf, surface, tint, roughness)
         elif not _build_revit_maps(nt, bsdf, rec, base_dir):
@@ -116,7 +122,11 @@ def build_material(rec, engine="CYCLES", surface="auto", base_dir=None):
 
     if fabric:
         _build_curtain(mat, nt, bsdf, out, fabric, float(rec.get("transparency", 0.0)))
-    if str(rec.get("appearance_class") or "") == "estofado" and transparency <= 0.0:
+    if automatic and str(rec.get("appearance_class") or "") == "metal" \
+            and not (rec.get("maps") or {}).get("diffuse") and transparency <= 0.0:
+        material_library.build_surface(nt, bsdf, "metal", rec.get("base_color", [0.8, 0.8, 0.8]),
+                                       roughness)
+    if automatic and str(rec.get("appearance_class") or "") == "estofado" and transparency <= 0.0:
         # Upholstery (SketchUp component named sofa/poltrona/almofada...): the
         # soft grazing-angle sheen of cloth; untextured ones also get a weave.
         if not bsdf.inputs["Normal"].is_linked and not (rec.get("maps") or {}).get("diffuse") \
@@ -212,7 +222,13 @@ def _build_revit_maps(nt, bsdf, rec, base_dir):
     img.location = (-460, 60)
     img.image = bpy.data.images.load(dpath, check_existing=True)
     _wire(img, diffuse)
-    nt.links.new(img.outputs["Color"], bsdf.inputs["Base Color"])
+    color_out = img.outputs["Color"]
+    tint = diffuse.get("tint")
+    if tint:
+        # Library texture picked automatically for a colour-only material: keep
+        # the project's colour, take only the pattern/relief from the texture.
+        color_out = _tint(nt, img, tint)
+    nt.links.new(color_out, bsdf.inputs["Base Color"])
     if diffuse.get("alpha"):
         # Cut-out texture (PNG with transparency: plants, curtains, people from
         # SketchUp): the image alpha drives the surface's own alpha.
@@ -265,6 +281,40 @@ def _build_revit_maps(nt, bsdf, rec, base_dir):
 
 
 UV_LAYER = "UVMap"    # the glTF importer's name for TEXCOORD_0
+
+
+def _image_mean_rgb_linear(img):
+    """Average colour of an image, linear. Byte images report sRGB-encoded
+    pixels, so they are linearised here. None on failure."""
+    try:
+        import numpy as np
+        n = img.size[0] * img.size[1]
+        if n <= 0:
+            return None
+        px = np.empty(n * img.channels, dtype=np.float32)
+        img.pixels.foreach_get(px)
+        px = px.reshape(-1, img.channels)[:, :3]
+        if not img.is_float:
+            px = np.where(px <= 0.04045, px / 12.92, ((px + 0.055) / 1.055) ** 2.4)
+        return [float(v) for v in px.mean(axis=0)]
+    except Exception:
+        return None
+
+
+def _tint(nt, img, tint):
+    """texture x (tint / texture average): the result averages to `tint` (the
+    material's own colour) while keeping the texture's light/dark pattern."""
+    mean = _image_mean_rgb_linear(img.image) or [0.5, 0.5, 0.5]
+    fac = [max(0.0, min(8.0, float(t) / max(m, 1e-3))) for t, m in zip(tint[:3], mean)]
+    mix = nt.nodes.new("ShaderNodeMix")
+    mix.data_type = "RGBA"
+    mix.blend_type = "MULTIPLY"
+    mix.location = (-220, 60)
+    mix.name = "BIR_Tint"
+    mix.inputs[0].default_value = 1.0                       # Factor
+    nt.links.new(img.outputs["Color"], mix.inputs[6])        # A (color)
+    mix.inputs[7].default_value = (fac[0], fac[1], fac[2], 1.0)   # B (color)
+    return mix.outputs[2]                                    # Result (color)
 
 
 def _same_scale(entry, diffuse):
@@ -385,8 +435,9 @@ def _setup_eevee_glass(mat, engine):
 def apply_materials(loaded, engine="CYCLES"):
     overrides = _overrides_for(loaded.spec)
     base_dir = (loaded.spec or {}).get("_override_dir")  # == the bundle dir
+    automatic = (loaded.spec.get("render") or {}).get("procedural_by_name", True) is not False
     by_id = {rec["id"]: build_material(rec, engine, overrides.get(rec["id"], "auto"),
-                                       base_dir=base_dir)
+                                       base_dir=base_dir, automatic=automatic)
              for rec in loaded.spec.get("materials", [])}
     elems = {e["node"]: e
              for e in loaded.spec.get("geometry", {}).get("elements", [])}

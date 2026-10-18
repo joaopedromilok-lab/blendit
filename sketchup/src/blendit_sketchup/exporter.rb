@@ -11,6 +11,8 @@
 #   * direção do sol exatamente como as sombras do SketchUp.
 require 'fileutils'
 require_relative 'bundle_writer'
+require_relative 'classificador'
+require_relative 'biblioteca_materiais'
 
 module BlenditSU
   class Exporter
@@ -36,6 +38,17 @@ module BlenditSU
       @in_light = nil
       @section_used = false
       @uv_stats = {}         # material_id -> { real:, fallback: } faces
+      @uso = {}              # material -> { area:, piso:, parede:, estofado: } (modo automático)
+      @modo = %w[preservar estrito automatico].include?(@opts[:materiais].to_s) ? @opts[:materiais].to_s : 'preservar'
+    end
+
+    # Materiais no render: 'preservar' (padrão - como no SketchUp, com os
+    # ajustes por nome que já existiam), 'estrito' (nenhum ajuste automático) ou
+    # 'automatico' (materiais só-cor ganham textura do catálogo, só no render).
+    attr_reader :modo
+
+    def estrito?
+      @modo == 'estrito'
     end
 
     attr_reader :faces, :lights, :section_used
@@ -54,6 +67,7 @@ module BlenditSU
 
       @geom_cache = @vnorm_cache = nil       # libera a memória antes de gravar
       marcar_uvs
+      aplicar_automaticos if @modo == 'automatico'
       spec = build_spec
       BundleWriter.new.write(@buckets.values, spec, out_dir)
     end
@@ -108,7 +122,7 @@ module BlenditSU
           was = @in_light
           @in_light ||= light_kind(e, defn)
           was_c = @in_curtain
-          @in_curtain ||= curtain_kind(e, defn) || upholstery_kind(e, defn)
+          @in_curtain ||= curtain_kind(e, defn) || upholstery_kind(e, defn) unless estrito?
           child_mat = e.material || inherited
           walk(defn.entities, child_tr, child_mat, child_key, depth + 1, clips)
           @in_light = was
@@ -320,6 +334,7 @@ module BlenditSU
       end
 
       bucket_for(key, mid).add_smooth(flat, nrms, tris, uvs)
+      medir_uso(mat, flat, tris, n) if @modo == 'automatico' && mat
       @faces += 1
       track_ground(face, flat, n)
     end
@@ -394,6 +409,108 @@ module BlenditSU
         [mpts.map { |p| [p.x.to_f, p.y.to_f, p.z.to_f] }, vec3(face.normal), lnormals, tris,
          mesh_uvs(mesh, mpts.length, true), mesh_uvs(mesh, mpts.length, false)]
       end
+    end
+
+    # ---------------------------------------------------------------- modo automático
+    PISO_ALTURA = 0.5 / INCH_TO_M      # até 50 cm acima do ponto mais baixo = piso
+
+    def medir_uso(mat, flat, tris, n)
+      u = (@uso[mat] ||= { area: 0.0, piso: 0.0, parede: 0.0, estofado: 0.0 })
+      a = 0.0
+      tris.each do |i, j, k|
+        e1 = (0..2).map { |c| flat[j][c] - flat[i][c] }
+        e2 = (0..2).map { |c| flat[k][c] - flat[i][c] }
+        cr = cross3(e1, e2)
+        a += 0.5 * Math.sqrt(cr[0]**2 + cr[1]**2 + cr[2]**2)
+      end
+      a *= INCH_TO_M * INCH_TO_M
+      u[:area] += a
+      @z_piso ||= @bounds ? @bounds.min.z.to_f : 0.0
+      if n[2] > 0.95 && flat.map { |q| q[2] }.min - @z_piso < PISO_ALTURA
+        u[:piso] += a
+      elsif n[2].abs < 0.1
+        u[:parede] += a
+      end
+      u[:estofado] += a if @in_curtain == 'estofado'
+    end
+
+    # Materiais só-cor ganham uma textura PBR do catálogo local - só no pacote
+    # do render; o modelo do SketchUp não muda. Ordem de decisão:
+    #   1. escolha guardada pela arquiteta ('auto_decisao' aprovado/rejeitado);
+    #   2. classificador com certeza alta ou média;
+    #   3. certeza baixa / sem informação: nada (cor + realismo do render).
+    # A textura é tingida com a cor do material (a cor do projeto não muda).
+    def aplicar_automaticos
+      return unless defined?(Texturas)
+      regras = BibliotecaMateriais.carregar_regras(@opts[:regras_materiais])
+      nomes = Texturas::CATALOGO.to_h { |e| [e[3], e[1]] }
+      @auto_resumo = []
+      @materials.each do |chave, rec|
+        mat = chave.is_a?(Array) ? chave[0] : chave
+        next if mat == :default || mat.nil? || rec['maps'] || rec['transparency'].to_f > 0.0
+        decisao = attr_of(mat, 'auto_decisao').to_s
+        next if decisao == 'rejeitado'
+        nome = (mat.respond_to?(:display_name) ? mat.display_name : mat.name).to_s
+        rgb = [mat.color.red, mat.color.green, mat.color.blue]
+        cat, id, conf, motivo = decidir(mat, nome, rgb, decisao, regras, nomes)
+        next unless cat
+        if cat == 'metal'
+          rec['appearance_class'] = 'metal' if rec['appearance_class'].to_s.empty?
+          rec['auto'] = { 'categoria' => cat, 'confianca' => conf, 'origem' => 'automatico', 'motivo' => motivo }
+          next
+        end
+        next unless id
+        maps = mapas_do_catalogo(id, rec)
+        next unless maps
+        rec['maps'] = maps
+        ent = Texturas::CATALOGO.find { |e| e[3] == id }
+        rec['roughness'] = ent[5].to_f if ent && ent[5]
+        rec['auto'] = { 'categoria' => cat, 'confianca' => conf, 'textura' => id,
+                        'origem' => decisao == 'aprovado' ? 'aprovado' : 'automatico', 'motivo' => motivo }
+        @auto_resumo << [nome, cat, id, conf]
+      end
+    end
+
+    attr_reader :auto_resumo
+
+    def decidir(mat, nome, rgb, decisao, regras, nomes)
+      if decisao == 'aprovado'
+        id = attr_of(mat, 'auto_textura').to_s
+        cat = attr_of(mat, 'auto_categoria').to_s
+        return [cat, id, 'aprovado', 'escolha revisada pela arquiteta'] unless id.empty?
+      end
+      u = @uso[mat] || { area: 0.0, piso: 0.0, parede: 0.0, estofado: 0.0 }
+      ar = [u[:area], 1e-9].max
+      cl = Classificador.classificar({ nome: nome, rgb: rgb, alpha: 1.0, tem_textura: false,
+                                       area_m2: u[:area], frac_piso: u[:piso] / ar,
+                                       frac_parede: u[:parede] / ar, frac_estofado: u[:estofado] / ar }, regras)
+      return nil unless cl[:categoria] && %i[alta media].include?(cl[:confianca])
+      id = BibliotecaMateriais.ordenar(cl[:categoria], rgb, nome, nomes, regras).first
+      [cl[:categoria], id, cl[:confianca].to_s, cl[:motivo]]
+    end
+
+    # Copia cor / relevo / mapa de brilho do catálogo (baixa na 1a vez) para o
+    # pacote. nil se não der (sem internet e fora do cache): fica a cor.
+    def mapas_do_catalogo(id, rec)
+      ent = Texturas::CATALOGO.find { |e| e[3] == id }
+      return nil unless ent
+      diff, bump, (wm, hm), rugo = Texturas.fetch(ent)
+      return nil unless diff && File.file?(diff.to_s)
+      FileUtils.mkdir_p(@tex_dir)
+      escala = [wm.to_f > 0 ? wm.to_f : 1.0, hm.to_f > 0 ? hm.to_f : 1.0]
+      copia = lambda do |src, sufixo|
+        nome = "#{rec['id']}_auto#{sufixo}#{File.extname(src.to_s)}"
+        FileUtils.cp(src, File.join(@tex_dir, nome))
+        "textures/#{nome}"
+      end
+      maps = { 'diffuse' => { 'uri' => copia.call(diff, ''), 'scale_m' => escala,
+                              'tint' => rec['base_color'], 'auto' => true } }
+      maps['bump'] = { 'uri' => copia.call(bump, '_relevo'), 'scale_m' => escala, 'amount' => 0.35 } if bump && File.file?(bump.to_s)
+      maps['roughness'] = { 'uri' => copia.call(rugo, '_rugosidade'), 'scale_m' => escala } if rugo && File.file?(rugo.to_s)
+      maps
+    rescue StandardError => e
+      puts "Blendit: textura automática #{id} indisponível (#{e.message}) - fica a cor."
+      nil
     end
 
     # ---------------------------------------------------------------- UVs
@@ -841,6 +958,8 @@ module BlenditSU
           'view_transform' => 'AgX',
           'exposure' => 0.0,
           'interior' => interior_flag,
+          'materials_mode' => @modo,
+          'procedural_by_name' => !estrito?,
           'tone' => (@opts[:tom] || 'natural').to_s,
           'brightness' => (@opts[:brilho] || 0).to_f
         }.merge(@section_used ? { 'section_fill' => [0.06, 0.06, 0.06] } : {})

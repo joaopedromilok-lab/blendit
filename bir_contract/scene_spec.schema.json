@@ -79,6 +79,7 @@
         "emissive": { "oneOf": [{ "$ref": "#/$defs/rgb" }, { "type": "null" }] },
         "emissive_strength": { "type": "number" },
         "appearance_class": { "type": "string" },
+        "auto": { "type": ["object", "null"], "description": "Render-only automatic material: categoria, confianca (alta/media/aprovado), textura, origem, motivo. Category of surface, not a commercial product." },
         "glossiness": { "oneOf": [{ "type": "number", "minimum": 0, "maximum": 1 }, { "type": "null" }] },
         "maps": {
           "oneOf": [
@@ -105,6 +106,8 @@
         "rotation_deg": { "type": "number" },
         "amount": { "type": "number" },
         "alpha": { "type": "boolean" },
+        "tint": { "$ref": "#/$defs/rgb", "description": "Linear colour the map is tinted to (automatic catalogue textures keep the project colour)." },
+        "auto": { "type": "boolean", "description": "Map chosen automatically from the local catalogue (render-only)." },
         "uv": { "type": "boolean", "description": "true: the geometry carries TEXCOORD_0 (the source app's own texture placement) for this material; sample this map through it. Absent/false: real-world box projection with scale_m." }
       }
     },
@@ -183,6 +186,8 @@
       "type": "object",
       "required": ["mode", "engine"],
       "properties": {
+        "materials_mode": { "type": "string", "enum": ["preservar", "estrito", "automatico"] },
+        "procedural_by_name": { "type": "boolean", "description": "false = no name-based surfaces/cues (strict). Absent = true (0.4.3 behaviour)." },
         "mode": { "type": "string", "enum": ["realistic", "white", "shadow", "linework", "specular", "pen", "sketch", "cel", "hatch", "crosshatch", "yellowtrace", "kraft", "blueprint", "diagram", "watercolor", "risograph"] },
         "engine": { "type": "string", "enum": ["CYCLES", "EEVEE"] },
         "resolution": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },

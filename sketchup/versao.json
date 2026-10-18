@@ -1,5 +1,5 @@
 {
-  "versao": "0.4.3",
+  "versao": "0.4.4",
   "rbz": "https://raw.githubusercontent.com/joaopedromilok-lab/blendit/main/sketchup/release/blendit_sketchup.rbz",
-  "novidades": "- As texturas agora saem no render exatamente como estão posicionadas no SketchUp: rotação, deslocamento, imagem esticada para caber (quadros, tela de TV, arte), veio da madeira acompanhando o móvel girado e textura herdada do grupo. Antes a imagem era reaplicada pela escala e podia repetir ou sair cortada.\n- Pacotes antigos e materiais sem mapeamento válido continuam funcionando com a projeção de antes."
+  "novidades": "- Novo menu Blendit > Materiais no render:\n  • Preservar (padrão): como no SketchUp.\n  • Preservar estritamente: nenhum ajuste automático nos materiais.\n  • Automático: materiais que são só cor (piso, madeira, tecido, pedra de bancada, concreto...) ganham textura real do catálogo SÓ NO RENDER, na cor do projeto - o SketchUp não muda. Só quando o nome ou o uso deixa claro o tipo; na dúvida, fica a cor.\n- Texturas automáticas: mostra a certeza de cada sugestão (alta / média / baixa) e permite aplicar \"só no render\". \"Limpar escolhas automáticas\" desfaz tudo."
 }

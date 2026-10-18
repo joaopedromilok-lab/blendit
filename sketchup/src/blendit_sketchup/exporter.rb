@@ -35,6 +35,7 @@ module BlenditSU
       @min_z = Float::INFINITY
       @bounds = nil
       @lights = []
+      @objetos = []          # objetos de decoração (substitutos -> modelo real)
       @in_light = nil
       @section_used = false
       @uv_stats = {}         # material_id -> { real:, fallback: } faces
@@ -63,12 +64,14 @@ module BlenditSU
 
       @bounds = @model.bounds
       walk(@model.entities, Geom::Transformation.new, nil, ['Soltos', 'Geometria solta', ''], 0)
-      raise 'Nada visível para exportar nesta vista.' if @buckets.empty?
+      raise 'Nada visível para exportar nesta vista.' if @buckets.empty? && @objetos.empty?
 
       @geom_cache = @vnorm_cache = nil       # libera a memória antes de gravar
       marcar_uvs
       aplicar_automaticos if @modo == 'automatico'
       spec = build_spec
+      assets = copiar_objetos(out_dir)
+      spec['assets'] = assets unless assets.empty?
       BundleWriter.new.write(@buckets.values, spec, out_dir)
     end
 
@@ -110,6 +113,8 @@ module BlenditSU
         when Sketchup::Group, Sketchup::ComponentInstance
           defn = e.definition
           next if defn.nil?
+          # Objeto de decoração (substituto leve): no render entra o modelo real.
+          next if add_objeto(e, defn, tr * e.transformation, clips)
           child_key = key
           if depth.zero?
             label = e.name.to_s.empty? ? defn.name.to_s : e.name.to_s
@@ -120,16 +125,71 @@ module BlenditSU
           add_light(e, defn, child_tr, clips) unless @in_light
           # Uma luminária detectada: as peças de dentro não viram outra luz.
           was = @in_light
-          @in_light ||= light_kind(e, defn)
+          was_g = @in_glow
+          unless @in_light
+            @in_light = light_kind(e, defn)
+            @in_glow = glow_info(e, defn, @in_light) if @in_light
+          end
           was_c = @in_curtain
           @in_curtain ||= curtain_kind(e, defn) || upholstery_kind(e, defn) unless estrito?
           child_mat = e.material || inherited
           walk(defn.entities, child_tr, child_mat, child_key, depth + 1, clips)
           @in_light = was
+          @in_glow = was_g
           @in_curtain = was_c
         end
       end
     end
+
+    # ---------------------------------------------------------------- objetos de decoração
+    # Componente substituto (Objetos.substituto): atributo blendit 'objeto_ph'
+    # na definição. A geometria leve dele NÃO vai para o render; vai o modelo
+    # 3D real (glTF do Poly Haven, baixado ao inserir), copiado para assets/.
+    def add_objeto(e, defn, tr, clips)
+      id = defn.respond_to?(:get_attribute) ? defn.get_attribute('blendit', 'objeto_ph').to_s : ''
+      return false if id.empty?
+      return true unless id =~ /\A[a-z0-9_\-]+\z/i && @opts.fetch(:objetos, true)
+      mn, mx = world_bbox(defn, tr)
+      centro = (0..2).map { |i| (mn[i] + mx[i]) / 2.0 }
+      return true if clips.any? { |c| side(c, centro) < 0 }
+      @objetos << { 'id' => id, 'source' => 'polyhaven',
+                    'name' => defn.get_attribute('blendit', 'objeto_nome').to_s,
+                    'matrix' => tr.to_a.map(&:to_f) }
+      true
+    end
+
+    # Copia o glTF de cada objeto usado para o pacote; sem o arquivo (não
+    # baixado e sem internet) o objeto fica de fora e o log avisa.
+    def copiar_objetos(out_dir)
+      return [] if @objetos.empty?
+      prontos = {}
+      @objetos.map { |o| o['id'] }.uniq.each do |id|
+        src = nil
+        if defined?(Objetos)
+          begin
+            Objetos.garantir(id)
+            src = Objetos.pasta(id)
+          rescue StandardError => e
+            puts "Blendit: objeto #{id} indisponível (#{e.message}) - fica de fora do render."
+          end
+        end
+        src ||= @opts[:objetos_dir] && File.join(@opts[:objetos_dir], id)
+        gltf = src && Dir.glob(File.join(src, '*.gltf')).first
+        next unless gltf
+        dest = File.join(out_dir, 'assets', id)
+        FileUtils.mkdir_p(dest)
+        Dir.glob('**/*', base: src).each do |rel|
+          f = File.join(src, rel)
+          next unless File.file?(f) && rel !~ /\.json\z|\Aminiatura\.png\z|\Aok\z/
+          FileUtils.mkdir_p(File.dirname(File.join(dest, rel)))
+          FileUtils.cp(f, File.join(dest, rel))
+        end
+        prontos[id] = "assets/#{id}/#{File.basename(gltf)}"
+      end
+      @objetos.select { |o| prontos[o['id']] }.map { |o| o.merge('uri' => prontos[o['id']]) }
+    end
+
+    attr_reader :objetos
 
     # ---------------------------------------------------------------- corte
     # Plano de corte ativo destas entidades (no modelo ou dentro de um grupo).
@@ -202,6 +262,8 @@ module BlenditSU
       [:generica, ['luminaria', 'lampada', 'lamp', 'light', 'luz', 'iluminacao']]
     ].freeze
 
+    LIGHT_COR = /(?<![a-z0-9])light (grey|gray|blue|green|brown|beige|pink|yellow|red|wood|oak|walnut|ash|cream|white|black|tan|teal|purple|orange)/.freeze
+
     # [kelvin, candela, tipo]
     LIGHT_DEFAULTS = {
       spot: [3000, 2500, 'spot'], pendente: [2700, 1300, 'point'], plafon: [3000, 2000, 'point'],
@@ -229,6 +291,8 @@ module BlenditSU
       forced = attr(e, defn, 'tipo')
       return forced.to_s.to_sym if forced && LIGHT_DEFAULTS.key?(forced.to_s.to_sym)
       text = " #{Exporter.plain(e.name)} #{Exporter.plain(defn.name)} "
+      # "Sofa light grey", "Light oak": 'light' seguido de cor/madeira é cor clara, não luminária.
+      text = text.gsub(LIGHT_COR, ' ')
       LIGHT_RULES.each do |kind, keys|
         keys.each do |k|
           return kind if text =~ /(?<![a-z0-9])#{Regexp.escape(k)}/
@@ -300,10 +364,100 @@ module BlenditSU
       end
     end
 
+    # ---------------------------------------------------------------- luminárias que brilham
+    # Dentro de uma luminária reconhecida, a lente / vidro / acrílico / difusor /
+    # lâmpada brilha na imagem (material emissivo, só no render). Pelo nome do
+    # material ou por ser transparente. Atributo blendit 'brilho' na luminária:
+    # 'nao' desliga; 'sim' faz brilhar também as partes claras sem nome claro.
+    GLOW_RE = /vidro|glass|acr[ií]lic|acrylic|policarbonat|leitos|opal|difus|lente|\blens|l[aâ]mpada|bulbo|bulb|\bled\b|emiss|neon|\bluz\b|light|lumin|cristal|crystal|vela\b|chama|flame/i.freeze
+    GLOW_NAO_RE = /metal|alum[ií]n|inox|a[cç]o\b|steel|chrome|cromad|ferro|madeira|wood|preto|black|lat[aã]o|brass|cobre|copper/i.freeze
+    GLOW_FORCA = { dia: 2.5, noite: 6.0 }.freeze
+
+    def glow_info(e, defn, kind)
+      v = attr(e, defn, 'brilho').to_s.downcase
+      return nil if %w[nao não no off false 0].include?(v) || kind.nil?
+      kelvin = attr(e, defn, 'kelvin').to_f
+      kelvin = LIGHT_DEFAULTS[kind][0] unless kelvin > 0
+      { kind: kind, kelvin: kelvin, forcar: %w[sim yes on true 1].include?(v) }
+    end
+
+    def glows?(mat, info)
+      return false unless info && mat
+      nome = (mat.respond_to?(:display_name) ? mat.display_name : mat.name).to_s
+      return false if nome =~ GLOW_NAO_RE
+      alpha = mat.respond_to?(:alpha) ? mat.alpha.to_f : 1.0
+      return true if nome =~ GLOW_RE || alpha < 0.99
+      return false unless info[:forcar]
+      c = mat.color
+      (0.2126 * c.red + 0.7152 * c.green + 0.0722 * c.blue) > 150
+    rescue StandardError
+      false
+    end
+
+    # Cor de uma lâmpada pela temperatura (K), linear (aprox. de Tanner Helland).
+    def self.kelvin_rgb(k)
+      t = [[k.to_f, 1000.0].max, 12_000.0].min / 100.0
+      r = t <= 66 ? 255.0 : 329.698727446 * ((t - 60)**-0.1332047592)
+      g = t <= 66 ? 99.4708025861 * Math.log(t) - 161.1195681661 : 288.1221695283 * ((t - 60)**-0.0755148492)
+      b = if t >= 66 then 255.0
+          elsif t <= 19 then 0.0
+          else 138.5177312231 * Math.log(t - 10) - 305.0447927307
+          end
+      [r, g, b].map { |v| BlenditSU.srgb_to_linear([[v, 0.0].max, 255.0].min.round) }
+    end
+
+    def material_brilho_id(mat, info)
+      k = [mat, 'brilho', info[:kelvin].round]
+      rec = @materials[k]
+      return rec['id'] if rec
+      id = "m#{@mat_order.length + 1}"
+      rec = material_record(mat, id)
+      rec['name'] = "#{rec['name']} (brilho)"
+      # Metade branco: lâmpada quente aparece branco-quente na foto, não laranja.
+      rec['emissive'] = Exporter.kelvin_rgb(info[:kelvin]).map { |c| 0.5 + 0.5 * c }
+      rec['emissive_strength'] = @opts[:noite] ? GLOW_FORCA[:noite] : GLOW_FORCA[:dia]
+      rec['transparency'] = 0.0                     # difusor aceso parece opaco
+      rec['appearance_class'] = 'emissive'
+      rec['base_color'] = rec['base_color'].map { |v| [v, 0.8].min }
+      @materials[k] = rec
+      @mat_order << rec
+      @brilhos = (@brilhos || 0) + 1
+      id
+    end
+
+    attr_reader :brilhos
+
+    # ---------------------------------------------------------------- variações de proposta
+    # opts[:trocas] = { 'nome do material' => 'nome do material que entra no lugar' }:
+    # só no render (o modelo não muda). Materiais que não existem são ignorados.
+    def trocas
+      return @trocas if @trocas
+      @trocas = {}
+      pedidos = @opts[:trocas]
+      return @trocas unless pedidos.is_a?(Hash) && !pedidos.empty?
+      por_nome = {}
+      @model.materials.each { |m| por_nome[m.name.to_s] = m }
+      pedidos.each do |de, para|
+        a = por_nome[de.to_s]
+        b = por_nome[para.to_s]
+        @trocas[a] = b if a && b && a != b
+      end
+      @trocas
+    end
+
     # ---------------------------------------------------------------- faces
     def add_face(face, tr, inherited, key, clips = [])
       mat = face.material || inherited || face.back_material
-      mid = material_id(mat, @in_curtain && !mat_rigid?(mat) ? @in_curtain : nil)
+      trocado = false
+      if !trocas.empty? && trocas[mat]
+        mat = trocas[mat]
+        trocado = true        # posição da textura original não vale para a nova: escala real
+      end
+      mid = if @in_glow && glows?(mat, @in_glow) && @opts.fetch(:brilho_luminarias, true)
+              material_brilho_id(mat, @in_glow)
+            else
+              material_id(mat, @in_curtain && !mat_rigid?(mat) ? @in_curtain : nil)
+            end
 
       lpts, lnormal, lnormals, ltris, uvf, uvb = local_geom(face)
       return if lpts.empty?
@@ -319,7 +473,7 @@ module BlenditSU
                Array.new(flat.length, n)
              end
       tris = mirrored ? ltris.map { |t| [t[0], t[2], t[1]] } : ltris
-      uvs, origem = face_uvs(face, mat, inherited, lpts, uvf, uvb, flat)
+      uvs, origem = face_uvs(face, mat, inherited, lpts, uvf, uvb, flat, trocado)
       if uvs
         st = (@uv_stats[mid] ||= { real: 0, fallback: 0 })
         st[origem] += 1
@@ -453,10 +607,11 @@ module BlenditSU
       return unless defined?(Texturas)
       regras = BibliotecaMateriais.carregar_regras(@opts[:regras_materiais])
       nomes = Texturas::CATALOGO.to_h { |e| [e[3], e[1]] }
+      @extras_auto = Texturas.respond_to?(:extras_auto) ? (Texturas.extras_auto(regras) rescue {}) : {}
       @auto_resumo = []
       @materials.each do |chave, rec|
         mat = chave.is_a?(Array) ? chave[0] : chave
-        next if mat == :default || mat.nil? || rec['maps'] || rec['transparency'].to_f > 0.0
+        next if mat == :default || mat.nil? || rec['maps'] || rec['transparency'].to_f > 0.0 || rec['emissive']
         decisao = attr_of(mat, 'auto_decisao').to_s
         next if decisao == 'rejeitado'
         nome = (mat.respond_to?(:display_name) ? mat.display_name : mat.name).to_s
@@ -472,8 +627,8 @@ module BlenditSU
         maps = mapas_do_catalogo(id, rec)
         next unless maps
         rec['maps'] = maps
-        ent = Texturas::CATALOGO.find { |e| e[3] == id }
-        rec['roughness'] = ent[5].to_f if ent && ent[5]
+        ent = Texturas.resolver(id)
+        rec['roughness'] = ent['rugosidade'].to_f if ent && ent['rugosidade']
         rec['auto'] = { 'categoria' => cat, 'confianca' => conf, 'textura' => id,
                         'origem' => decisao == 'aprovado' ? 'aprovado' : 'automatico', 'motivo' => motivo }
         @auto_resumo << [nome, cat, id, conf]
@@ -494,21 +649,21 @@ module BlenditSU
                                        area_m2: u[:area], frac_piso: u[:piso] / ar,
                                        frac_parede: u[:parede] / ar, frac_estofado: u[:estofado] / ar }, regras)
       return nil unless cl[:categoria] && %i[alta media].include?(cl[:confianca])
-      id = BibliotecaMateriais.ordenar(cl[:categoria], rgb, nome, nomes, regras).first
+      id = BibliotecaMateriais.ordenar_com_extras(cl[:categoria], rgb, nome, nomes, regras,
+                                                  (@extras_auto || {})[cl[:categoria]] || []).first
       [cl[:categoria], id, cl[:confianca].to_s, cl[:motivo]]
     end
 
     # Copia cor / relevo / mapa de brilho do catálogo (baixa na 1a vez) para o
     # pacote. nil se não der (sem internet e fora do cache): fica a cor.
     def mapas_do_catalogo(id, rec)
-      ent = Texturas::CATALOGO.find { |e| e[3] == id }
-      return nil unless ent
-      diff, bump, (wm, hm), rugo = Texturas.fetch(ent)
+      return nil unless Texturas.resolver(id)
+      diff, bump, (wm, hm), rugo = Texturas.fetch_chave(id)
       return nil unless diff && File.file?(diff.to_s)
       FileUtils.mkdir_p(@tex_dir)
       escala = [wm.to_f > 0 ? wm.to_f : 1.0, hm.to_f > 0 ? hm.to_f : 1.0]
       copia = lambda do |src, sufixo|
-        nome = "#{rec['id']}_auto#{sufixo}#{File.extname(src.to_s)}"
+        nome = "#{rec['id']}_auto#{sufixo}#{File.extname(src.to_s).downcase}"
         FileUtils.cp(src, File.join(@tex_dir, nome))
         "textures/#{nome}"
       end
@@ -549,11 +704,12 @@ module BlenditSU
     # UVs da face no lado cujo material é usado, em unidades de textura
     # (1 = a imagem inteira). nil = sem textura (não precisa de UV).
     # -> [uvs, :real | :fallback]
-    def face_uvs(face, mat, inherited, lpts, uvf, uvb, flat)
+    def face_uvs(face, mat, inherited, lpts, uvf, uvb, flat, caixa = false)
       tex = mat && mat.texture
       return nil unless tex
       tw = tex.width.to_f
       th = tex.height.to_f
+      return [box_uvs(flat, tw, th), :fallback] if caixa
       raw, own = if face.material then [uvf, true]          # frente pintada
                  elsif inherited then [uvf, false]          # cor do grupo/componente
                  else [uvb, true]                           # só o verso pintado
@@ -823,7 +979,63 @@ module BlenditSU
         rugo = rough_map(mat, id, tex)
         rec['maps']['roughness'] = rugo if rugo
       end
+      pbr = pbr_maps(mat, id, tex)
+      unless pbr.empty?
+        rec['maps'] ||= {}
+        pbr.each { |k, v| rec['maps'][k] ||= v }   # mapa da biblioteca Blendit tem preferência
+      end
       rec
+    end
+
+    # Mapas PBR do SketchUp 2025+ (Material > fluxo "PBR metálico/rugosidade"):
+    # relevo (normal), rugosidade, metálico e oclusão de ambiente. Só leitura -
+    # o material do modelo não muda. Usam o mesmo posicionamento da textura de
+    # cor (as mesmas UVs); sem textura de cor, o tamanho do próprio mapa.
+    # No SketchUp o fator multiplica o mapa ('pbr' => true no pacote).
+    def pbr_maps(mat, id, diffuse)
+      return {} unless mat.respond_to?(:workflow) && defined?(Sketchup::Material::WORKFLOW_PBR_METALLIC_ROUGHNESS)
+      return {} unless mat.workflow == Sketchup::Material::WORKFLOW_PBR_METALLIC_ROUGHNESS
+      out = {}
+      grava = lambda do |tex, sufixo|
+        next nil unless tex && tex.respond_to?(:write)
+        FileUtils.mkdir_p(@tex_dir)
+        ext = File.extname(tex.filename.to_s).downcase
+        ext = '.png' unless %w[.png .jpg .jpeg .bmp .tif .tiff].include?(ext)
+        path = File.join(@tex_dir, "#{id}_#{sufixo}#{ext}")
+        ok = (tex.write(path, false) rescue false)
+        next nil unless ok && File.file?(path)
+        escala = if diffuse then diffuse['scale_m']
+                 else
+                   w = tex.width.to_f * INCH_TO_M
+                   h = tex.height.to_f * INCH_TO_M
+                   [w > 0 ? w : 1.0, h > 0 ? h : 1.0]
+                 end
+        { 'uri' => "textures/#{File.basename(path)}", 'scale_m' => escala, 'pbr' => true }
+      end
+      habilitado = ->(m) { !mat.respond_to?(m) || mat.public_send(m) }
+      if habilitado.call(:normal_enabled?) && (e = grava.call(mat.normal_texture, 'normal'))
+        e['strength'] = [mat.normal_scale.to_f, 0.0].max if mat.respond_to?(:normal_scale)
+        if mat.respond_to?(:normal_style) && defined?(Sketchup::Material::NORMAL_STYLE_DIRECTX)
+          e['directx'] = true if mat.normal_style == Sketchup::Material::NORMAL_STYLE_DIRECTX
+        end
+        out['normal'] = e
+      end
+      if mat.respond_to?(:roughness_texture) && habilitado.call(:roughness_enabled?) &&
+         (e = grava.call(mat.roughness_texture, 'rugosidade_pbr'))
+        out['roughness'] = e
+      end
+      if mat.respond_to?(:metallic_texture) && habilitado.call(:metalness_enabled?) &&
+         (e = grava.call(mat.metallic_texture, 'metalico'))
+        out['metallic'] = e
+      end
+      if mat.respond_to?(:ao_texture) && habilitado.call(:ao_enabled?) && (e = grava.call(mat.ao_texture, 'ao'))
+        e['strength'] = mat.ao_strength.to_f if mat.respond_to?(:ao_strength)
+        out['ao'] = e
+      end
+      out
+    rescue StandardError => e
+      puts "Blendit: mapas PBR de #{id} ignorados (#{e.message})"
+      {}
     end
 
     # Grava a textura (já colorizada, se o material foi ajustado no SketchUp) e
@@ -992,8 +1204,10 @@ module BlenditSU
             'ground_under_site' => true }
       c = @hdri
       return w unless c
-      w.merge('sky_type' => 'hdri', 'hdri_uri' => c[:uri], 'hdri_strength' => c[:ceu].to_f,
-              'hdri_normalize' => true)
+      w = w.merge('sky_type' => 'hdri', 'hdri_uri' => c[:uri], 'hdri_strength' => c[:ceu].to_f,
+                  'hdri_normalize' => true)
+      w['hdri_ground'] = true if c[:paisagem]
+      w
     end
 
     # Céu fotografado (HDRI): copia o .hdr para o pacote. Só de dia e nos

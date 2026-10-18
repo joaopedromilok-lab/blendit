@@ -15,6 +15,7 @@
 require 'json'
 require 'fileutils'
 require 'zlib'
+require_relative 'biblioteca_materiais'
 
 module BlenditSU
   module Texturas
@@ -367,7 +368,8 @@ module BlenditSU
     # Mapa de rugosidade já baixado de uma textura da biblioteca (pelo id), para
     # materiais criados antes da versão 0.3.4.
     def self.rugo_em_cache(id)
-      return nil if id.to_s.empty?
+      return nil if id.to_s.empty? || id.to_s.start_with?('minha:')
+      id = id.to_s.sub(/\A(ph|acg):/, '')
       [File.join(dir, id.to_s), File.join(dir, "acg_#{id}")].each do |d|
         f = Dir.glob(File.join(d, 'rugo.*')).first
         return f if f
@@ -406,6 +408,86 @@ module BlenditSU
       _g, nome, _src, id, _s, rough = entry
       diff, bump, (wm, hm), rugo = fetch(entry)
       material_from(model, "#{nome} (Blendit)", diff, bump, wm, hm, rough, id, rugo)
+    end
+
+    # ------------------------------------------------------------- chaves de textura
+    # Uma textura pode vir de quatro lugares; todos usam a mesma "chave":
+    #   'Marble012'   biblioteca fixa (CATALOGO, 157 itens, nomes em português)
+    #   'ph:<id>'     qualquer textura do Poly Haven (catálogo online)
+    #   'acg:<id>'    qualquer textura do ambientCG (catálogo online)
+    #   'minha:<id>'  Minhas texturas (só neste computador)
+    # As chaves antigas (só o id da biblioteca) continuam valendo.
+    def self.entrada_fixa(chave)
+      id = chave.to_s.sub(/\A(ph|acg):/, '')
+      CATALOGO.find { |e| e[3] == id }
+    end
+
+    # -> { 'chave', 'nome', 'rugosidade', 'miniatura', 'categoria' } ou nil
+    def self.resolver(chave)
+      ch = chave.to_s
+      if (e = entrada_fixa(ch))
+        return { 'chave' => e[3], 'nome' => e[1], 'rugosidade' => e[5], 'miniatura' => thumb(e) }
+      end
+      if ch.start_with?('minha:')
+        it = minhas.find { |x| x['id'] == ch.sub('minha:', '') }
+        return nil unless it
+        return { 'chave' => ch, 'nome' => it['nome'], 'rugosidade' => ACABAMENTOS[it['acabamento']] || ACETINADO,
+                 'miniatura' => 'file:///' + File.join(meu_dir, it['arquivo'].to_s).tr('\\', '/'),
+                 'categoria' => BibliotecaMateriais.categoria_minha(it) }
+      end
+      return nil unless ch =~ /\A(ph|acg):[A-Za-z0-9_\-]+\z/ && defined?(CatalogoOnline)
+      it = CatalogoOnline.item_por_chave(ch)
+      return nil unless it
+      _tipo, cat = BibliotecaMateriais.classificar_item(it)
+      { 'chave' => ch, 'nome' => it['nome'], 'rugosidade' => BibliotecaMateriais.rugosidade_de(cat),
+        'miniatura' => it['miniatura'], 'categoria' => cat, 'acg_categoria' => it['categoria'] }
+    end
+
+    # Baixa (só na primeira vez) e devolve [cor, relevo|nil, [larg_m, alt_m], rugosidade|nil].
+    def self.fetch_chave(chave)
+      ch = chave.to_s
+      e = entrada_fixa(ch)
+      return fetch(e) if e
+      if ch.start_with?('minha:')
+        it = minhas.find { |x| x['id'] == ch.sub('minha:', '') }
+        raise 'Textura não encontrada nas Minhas texturas.' unless it
+        img = File.join(meu_dir, it['arquivo'].to_s)
+        raise 'Imagem não encontrada.' unless File.file?(img)
+        return [img, nil, [it['largura_cm'].to_f / 100.0, it['altura_cm'].to_f / 100.0], nil]
+      end
+      fonte, id = ch.split(':', 2)
+      raise "Textura desconhecida: #{ch}" unless id.to_s =~ /\A[A-Za-z0-9_\-]+\z/
+      if fonte == 'ph'
+        fetch_ph(id)
+      elsif fonte == 'acg'
+        r = resolver(ch) || {}
+        fetch_acg(id, BibliotecaMateriais.tamanho_acg(r['acg_categoria']))
+      else
+        raise "Textura desconhecida: #{ch}"
+      end
+    end
+
+    # Candidatos extras do modo Automático (catálogo online + Minhas texturas),
+    # por categoria. Sem catálogo baixado e sem Minhas texturas: {}.
+    def self.extras_auto(regras = {})
+      online = defined?(CatalogoOnline) ? (CatalogoOnline.novos rescue []) : []
+      BibliotecaMateriais.extras(online, minhas, regras)
+    end
+
+    # Cria (ou reaproveita) o material no modelo a partir de qualquer chave.
+    def self.material_de_chave(model, chave)
+      ch = chave.to_s
+      e = entrada_fixa(ch)
+      return create_material(model, e) if e
+      if ch.start_with?('minha:')
+        it = minhas.find { |x| x['id'] == ch.sub('minha:', '') }
+        raise 'Textura não encontrada nas Minhas texturas.' unless it
+        return material_minha(model, it)
+      end
+      r = resolver(ch)
+      raise 'Textura fora do catálogo. Atualize o catálogo online.' unless r
+      diff, bump, (wm, hm), rugo = fetch_chave(ch)
+      material_from(model, "#{r['nome']} (Blendit)", diff, bump, wm, hm, r['rugosidade'], ch, rugo)
     end
 
     # ------------------------------------------------------------- minhas texturas
@@ -747,7 +829,32 @@ module BlenditSU
       File.open(page, 'w:UTF-8') { |f| f.write(html) }
       dlg.set_file(File.expand_path(page))
 
-      dlg.add_action_callback('pronto') { |_c| enviar_minhas(dlg) }
+      dlg.add_action_callback('pronto') { |_c| enviar_minhas(dlg); enviar_online(dlg) }
+      dlg.add_action_callback('aplicar_online') do |_ctx, chave|
+        r = resolver(chave)
+        next dlg.execute_script("status(#{JSON.generate('Esse material saiu do catálogo. Clique em Atualizar catálogo.')})") unless r
+        dlg.execute_script("status(#{JSON.generate("Baixando \"#{r['nome']}\"... (só na primeira vez)")})")
+        UI.start_timer(0.05, false) do
+          begin
+            aplicar(dlg, Sketchup.active_model, material_de_chave(Sketchup.active_model, chave), r['nome'])
+          rescue StandardError => e
+            dlg.execute_script("status(#{JSON.generate("Não deu para baixar: #{e.message}. Confira a internet e tente de novo.")})")
+          end
+        end
+      end
+      dlg.add_action_callback('atualizar_online') do |_c|
+        dlg.execute_script("status(#{JSON.generate('Atualizando o catálogo online (só a lista, nenhuma textura é baixada)...')})")
+        UI.start_timer(0.05, false) do
+          begin
+            res = CatalogoOnline.atualizar
+            enviar_online(dlg)
+            txt = res.map { |f, r| r[:ok] ? "#{f}: #{r[:total]} (#{r[:novos]} novos)" : "#{f}: falhou (#{r[:erro]})" }.join(' - ')
+            dlg.execute_script("status(#{JSON.generate("Catálogo atualizado. #{txt}")}, true)")
+          rescue StandardError => e
+            dlg.execute_script("status(#{JSON.generate("Não deu para atualizar: #{e.message}")})")
+          end
+        end
+      end
       dlg.add_action_callback('aplicar') do |_ctx, idx|
         entry = CATALOGO[idx.to_i]
         next unless entry
@@ -823,6 +930,17 @@ module BlenditSU
         x.merge('src' => "minhas_texturas/#{x['arquivo']}")
       end
       dlg.execute_script("mostrarMinhas(#{JSON.generate(list)})")
+    end
+
+    # Catálogo online para a galeria: só os itens que não estão na biblioteca
+    # fixa, em formato compacto [chave, nome, tipo, fonte, miniatura].
+    def self.enviar_online(dlg)
+      itens = defined?(CatalogoOnline) ? CatalogoOnline.novos : []
+      lista = itens.map { |it| [it['chave'], it['nome'], it['tipo'], it['fonte'] == 'polyhaven' ? 'PH' : 'ACG', it['miniatura']] }
+      lista.sort_by! { |x| [x[2] == 'Outros' ? 1 : 0, x[2], x[1].downcase] }
+      dlg.execute_script("mostrarOnline(#{JSON.generate(lista)})")
+    rescue StandardError => e
+      dlg.execute_script("mostrarOnline([], #{JSON.generate(e.message)})")
     end
 
     # Baixa a biblioteca inteira de uma vez (para usar sem internet depois).
@@ -910,12 +1028,24 @@ module BlenditSU
         </style></head><body>
         <header>
           <div class="tabs"><button class="tab on" id="t1" onclick="aba(1)">Biblioteca (#{CATALOGO.length})</button>
+          <button class="tab" id="t3" onclick="aba(3)">Catálogo online</button>
           <button class="tab" id="t2" onclick="aba(2)">Minhas texturas</button></div>
           <div class="row" id="busca"><input type="search" id="q" placeholder="Buscar: mármore, carvalho, pastilha, granilite..." oninput="filtrar()">
           <button class="btn sec" onclick="sketchup.baixar_tudo()" title="Baixa todas as texturas para usar sem internet">Baixar tudo</button></div>
           <div id="st">Clique num material e pinte as faces. Sai no tamanho real e com relevo no render. Baixa só na primeira vez.</div>
         </header>
         <main id="p1">#{secoes}</main>
+        <main id="p3" class="hide">
+          <div class="row" style="margin-top:10px">
+            <input type="search" id="oq" placeholder="Buscar (nomes em inglês): oak, marble, terrazzo, linen, brick..." oninput="opag=0;listarOnline()">
+            <select id="otipo" onchange="opag=0;listarOnline()"><option value="">Todos os tipos</option></select>
+            <select id="ofonte" onchange="opag=0;listarOnline()"><option value="">Poly Haven e ambientCG</option><option>PH</option><option>ACG</option></select>
+            <button class="btn sec" onclick="sketchup.atualizar_online()" title="Busca a lista mais nova nas duas fontes (não baixa texturas)">Atualizar catálogo</button>
+          </div>
+          <div id="oinfo" style="color:var(--mut);font-size:12px;margin:8px 0"></div>
+          <div class="g" id="ogrid"></div>
+          <div class="row" style="justify-content:center;margin-top:12px" id="opags"></div>
+        </main>
         <main id="p2" class="hide">
           <div class="form">
             <div class="row" style="margin-bottom:8px"><button class="btn sec" onclick="sketchup.escolher_imagem()">Escolher imagem...</button>
@@ -944,11 +1074,44 @@ module BlenditSU
           function pick(i){ sketchup.aplicar(i); }
           function status(t, ok){ var s=document.getElementById('st'); s.textContent=t; s.className=ok?'ok':''; }
           function aba(n){
-            document.getElementById('p1').classList.toggle('hide', n!==1);
-            document.getElementById('p2').classList.toggle('hide', n!==2);
+            [1,2,3].forEach(function(k){
+              document.getElementById('p'+k).classList.toggle('hide', n!==k);
+              document.getElementById('t'+k).classList.toggle('on', n===k);
+            });
             document.getElementById('busca').classList.toggle('hide', n!==1);
-            document.getElementById('t1').classList.toggle('on', n===1);
-            document.getElementById('t2').classList.toggle('on', n===2);
+          }
+          var ONLINE = [], opag = 0, POR_PAG = 60;
+          function mostrarOnline(l, erro){
+            ONLINE = l || [];
+            document.getElementById('t3').textContent = 'Catálogo online (' + ONLINE.length + ')';
+            var tipos = {}; ONLINE.forEach(function(x){ tipos[x[2]] = (tipos[x[2]]||0) + 1; });
+            var sel = document.getElementById('otipo'), atual = sel.value;
+            sel.innerHTML = '<option value="">Todos os tipos</option>' + Object.keys(tipos).sort().map(function(t){
+              return '<option value="' + esc(t) + '"' + (t===atual?' selected':'') + '>' + esc(t) + ' (' + tipos[t] + ')</option>'; }).join('');
+            if (!ONLINE.length) {
+              document.getElementById('oinfo').textContent = erro ? ('Catálogo indisponível: ' + erro) :
+                'O catálogo ainda está vazio. Clique em "Atualizar catálogo" (precisa de internet; baixa só a lista).';
+            }
+            listarOnline();
+          }
+          function listarOnline(){
+            var q = norm(document.getElementById('oq').value.trim()), t = document.getElementById('otipo').value,
+                f = document.getElementById('ofonte').value;
+            var l = ONLINE.filter(function(x){ return (!t || x[2]===t) && (!f || x[3]===f) && (!q || norm(x[1]+' '+x[0]+' '+x[2]).indexOf(q) >= 0); });
+            var paginas = Math.max(1, Math.ceil(l.length / POR_PAG)); if (opag >= paginas) opag = paginas - 1;
+            var parte = l.slice(opag * POR_PAG, (opag + 1) * POR_PAG);
+            document.getElementById('ogrid').innerHTML = parte.map(function(x){
+              return '<button class="c" onclick="sketchup.aplicar_online(\\'' + x[0] + '\\')" title="' + esc(x[0]) + '"><img loading="lazy" src="' + esc(x[4]||'') + '" alt="">' +
+                '<span>' + esc(x[1]) + '</span><small>' + esc(x[2]) + ' - ' + (x[3]==='PH'?'Poly Haven':'ambientCG') + '</small></button>'; }).join('');
+            if (ONLINE.length) document.getElementById('oinfo').textContent = l.length + ' materiais' + (l.length > POR_PAG ? ' - página ' + (opag+1) + ' de ' + paginas : '') +
+              '. Clique para baixar (só na primeira vez) e pintar. Tamanho real: Poly Haven informa; ambientCG é estimado pelo tipo.';
+            var p = '';
+            if (paginas > 1) {
+              p += '<button class="btn sec" ' + (opag===0?'disabled':'') + ' onclick="opag--;listarOnline();window.scrollTo(0,0)">&lsaquo; Anterior</button>';
+              p += '<span style="color:var(--mut)">' + (opag+1) + ' / ' + paginas + '</span>';
+              p += '<button class="btn sec" ' + (opag>=paginas-1?'disabled':'') + ' onclick="opag++;listarOnline();window.scrollTo(0,0)">Próxima &rsaquo;</button>';
+            }
+            document.getElementById('opags').innerHTML = p;
           }
           function norm(s){ return s.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase(); }
           function filtrar(){

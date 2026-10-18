@@ -92,6 +92,10 @@ def build_material(rec, engine="CYCLES", surface="auto", base_dir=None, automati
     # source app defined it - no name-based surfaces, curtain or upholstery cues.
     if not automatic and surface == "auto":
         surface = "auto_maps_only"
+    if surface == "auto" and str(rec.get("appearance_class") or "") == "emissive":
+        # Lit luminaire diffuser (lens / glass / acrylic): its own maps at most,
+        # never a name-based procedural surface.
+        surface = "auto_maps_only"
     fabric = curtain_kind(rec) if automatic else None
     if fabric:
         # Curtains are fabric, never glass - even when the source material is
@@ -180,7 +184,11 @@ def _build_revit_maps(nt, bsdf, rec, base_dir):
     diffuse = maps.get("diffuse") or {}
     dpath = _map_path(diffuse, base_dir)
     if dpath is None:
-        return False
+        # SketchUp 2025 PBR maps can exist on a material without a colour
+        # image (colour + relief / roughness / metal): build just those.
+        if not any(_map_path(maps.get(k), base_dir) for k in ("normal", "metallic", "ao")) \
+                and not (_map_path(maps.get("roughness"), base_dir) and (maps.get("roughness") or {}).get("pbr")):
+            return False
 
     tc = nt.nodes.new("ShaderNodeTexCoord")
     tc.location = (-900, 0)
@@ -218,18 +226,24 @@ def _build_revit_maps(nt, bsdf, rec, base_dir):
             tex_node.projection_blend = 0.25
             nt.links.new(mp.outputs["Vector"], tex_node.inputs["Vector"])
 
-    img = nt.nodes.new("ShaderNodeTexImage")
-    img.location = (-460, 60)
-    img.image = bpy.data.images.load(dpath, check_existing=True)
-    _wire(img, diffuse)
-    color_out = img.outputs["Color"]
-    tint = diffuse.get("tint")
-    if tint:
-        # Library texture picked automatically for a colour-only material: keep
-        # the project's colour, take only the pattern/relief from the texture.
-        color_out = _tint(nt, img, tint)
-    nt.links.new(color_out, bsdf.inputs["Base Color"])
-    if diffuse.get("alpha"):
+    img = None
+    color_out = None
+    if dpath is not None:
+        img = nt.nodes.new("ShaderNodeTexImage")
+        img.location = (-460, 60)
+        img.image = bpy.data.images.load(dpath, check_existing=True)
+        _wire(img, diffuse)
+        color_out = img.outputs["Color"]
+        tint = diffuse.get("tint")
+        if tint:
+            # Library texture picked automatically for a colour-only material: keep
+            # the project's colour, take only the pattern/relief from the texture.
+            color_out = _tint(nt, img, tint)
+    color_out = _apply_ao(nt, bsdf, maps, base_dir, _wire, color_out)
+    if color_out is not None:
+        nt.links.new(color_out, bsdf.inputs["Base Color"])
+    _apply_metallic(nt, bsdf, rec, maps, base_dir, _wire)
+    if img is not None and diffuse.get("alpha"):
         # Cut-out texture (PNG with transparency: plants, curtains, people from
         # SketchUp): the image alpha drives the surface's own alpha.
         nt.links.new(img.outputs["Alpha"], bsdf.inputs["Alpha"])
@@ -254,8 +268,12 @@ def _build_revit_maps(nt, bsdf, rec, base_dir):
         # only adds variation around it, scaled so its average lands on the
         # material's roughness value.
         target = float(rec.get("roughness", 0.5) or 0.5)
-        mean = _image_mean(rimg.image)
-        factor = target / mean if mean and mean > 0.02 else 1.0
+        if (maps.get("roughness") or {}).get("pbr"):
+            # SketchUp 2025 PBR map: the material's factor multiplies the map.
+            factor = target
+        else:
+            mean = _image_mean(rimg.image)
+            factor = target / mean if mean and mean > 0.02 else 1.0
         mul = nt.nodes.new("ShaderNodeMath")
         mul.operation = "MULTIPLY"
         mul.use_clamp = True
@@ -264,6 +282,9 @@ def _build_revit_maps(nt, bsdf, rec, base_dir):
         nt.links.new(rimg.outputs["Color"], mul.inputs[0])
         nt.links.new(mul.outputs["Value"], bsdf.inputs["Roughness"])
 
+    normal_out = _apply_normal(nt, maps, base_dir, uvnode, diffuse)
+    if normal_out is not None:
+        nt.links.new(normal_out, bsdf.inputs["Normal"])
     bpath = _map_path(maps.get("bump"), base_dir)
     if bpath is not None:
         bimg = nt.nodes.new("ShaderNodeTexImage")
@@ -276,8 +297,102 @@ def _build_revit_maps(nt, bsdf, rec, base_dir):
         amount = float((maps.get("bump") or {}).get("amount") or 0.3)
         bump.inputs["Strength"].default_value = max(0.0, min(1.0, amount))
         nt.links.new(bimg.outputs["Color"], bump.inputs["Height"])
+        if normal_out is not None:
+            nt.links.new(normal_out, bump.inputs["Normal"])
         nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
     return True
+
+
+def _apply_normal(nt, maps, base_dir, uvnode, diffuse):
+    """SketchUp 2025 normal map (tangent space). Tangents need the mesh UVs, so
+    it is used only when the bundle carries them for this material at the same
+    scale; otherwise it is skipped (a box-projected normal map would light the
+    surface wrongly). Returns the Normal socket or None."""
+    entry = maps.get("normal") or {}
+    path = _map_path(entry, base_dir)
+    if path is None or uvnode is None or not _same_scale(entry, diffuse):
+        return None
+    nimg = nt.nodes.new("ShaderNodeTexImage")
+    nimg.location = (-460, -840)
+    nimg.image = bpy.data.images.load(path, check_existing=True)
+    nimg.image.colorspace_settings.name = "Non-Color"
+    nimg.projection = "FLAT"
+    nt.links.new(uvnode.outputs["UV"], nimg.inputs["Vector"])
+    col = nimg.outputs["Color"]
+    if entry.get("directx"):
+        # DirectX normal maps have green pointing down: flip it to OpenGL.
+        sep = nt.nodes.new("ShaderNodeSeparateColor")
+        sep.location = (-300, -840)
+        inv = nt.nodes.new("ShaderNodeMath")
+        inv.operation = "SUBTRACT"
+        inv.inputs[0].default_value = 1.0
+        inv.location = (-160, -900)
+        comb = nt.nodes.new("ShaderNodeCombineColor")
+        comb.location = (-60, -840)
+        nt.links.new(col, sep.inputs["Color"])
+        nt.links.new(sep.outputs["Red"], comb.inputs["Red"])
+        nt.links.new(sep.outputs["Green"], inv.inputs[1])
+        nt.links.new(inv.outputs["Value"], comb.inputs["Green"])
+        nt.links.new(sep.outputs["Blue"], comb.inputs["Blue"])
+        col = comb.outputs["Color"]
+    nm = nt.nodes.new("ShaderNodeNormalMap")
+    nm.name = "BIR_NormalMap"
+    nm.location = (-120, -760)
+    nm.space = "TANGENT"
+    nm.uv_map = UV_LAYER
+    nm.inputs["Strength"].default_value = max(0.0, min(4.0, float(entry.get("strength", 1.0) or 0.0)))
+    nt.links.new(col, nm.inputs["Color"])
+    return nm.outputs["Normal"]
+
+
+def _apply_metallic(nt, bsdf, rec, maps, base_dir, wire):
+    """SketchUp 2025 metallic map x the material's metallic factor."""
+    entry = maps.get("metallic") or {}
+    path = _map_path(entry, base_dir)
+    if path is None:
+        return
+    mimg = nt.nodes.new("ShaderNodeTexImage")
+    mimg.location = (-460, -1100)
+    mimg.image = bpy.data.images.load(path, check_existing=True)
+    mimg.image.colorspace_settings.name = "Non-Color"
+    wire(mimg, entry)
+    mul = nt.nodes.new("ShaderNodeMath")
+    mul.operation = "MULTIPLY"
+    mul.use_clamp = True
+    mul.name = "BIR_Metallic"
+    mul.location = (-220, -1100)
+    mul.inputs[1].default_value = float(rec.get("metallic", 1.0))
+    nt.links.new(mimg.outputs["Color"], mul.inputs[0])
+    nt.links.new(mul.outputs["Value"], bsdf.inputs["Metallic"])
+
+
+def _apply_ao(nt, bsdf, maps, base_dir, wire, color_out):
+    """SketchUp 2025 ambient-occlusion map: darkens the colour in the crevices,
+    by its strength. Works on the colour image or on the flat colour."""
+    entry = maps.get("ao") or {}
+    path = _map_path(entry, base_dir)
+    if path is None:
+        return color_out
+    strength = max(0.0, min(1.0, float(entry.get("strength", 1.0) or 0.0)))
+    if strength <= 0.0:
+        return color_out
+    aimg = nt.nodes.new("ShaderNodeTexImage")
+    aimg.location = (-460, 340)
+    aimg.image = bpy.data.images.load(path, check_existing=True)
+    aimg.image.colorspace_settings.name = "Non-Color"
+    wire(aimg, entry)
+    mix = nt.nodes.new("ShaderNodeMix")
+    mix.data_type = "RGBA"
+    mix.blend_type = "MULTIPLY"
+    mix.name = "BIR_AO"
+    mix.location = (-120, 200)
+    mix.inputs[0].default_value = strength
+    if color_out is not None:
+        nt.links.new(color_out, mix.inputs[6])
+    else:
+        mix.inputs[6].default_value = tuple(bsdf.inputs["Base Color"].default_value)
+    nt.links.new(aimg.outputs["Color"], mix.inputs[7])
+    return mix.outputs[2]
 
 
 UV_LAYER = "UVMap"    # the glTF importer's name for TEXCOORD_0

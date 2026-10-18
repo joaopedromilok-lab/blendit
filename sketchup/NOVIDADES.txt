@@ -1,3 +1,8 @@
-- Arandelas e luzes de quadro agora acendem: a luz sai por baixo da peça (antes ficava dentro da carcaça e a própria luminária a bloqueava). Atributo blendit "facho = duplo" acende para cima também.
-- Mais nomes reconhecidos como luminária: luz de quadro, picture light, wall lamp, spot de trilho, iluminação.
-- A barra inferior mostra quantas luzes de luminárias foram reconhecidas na cena.
+- Biblioteca de materiais: nova aba "Catálogo online" com todos os materiais do Poly Haven e do ambientCG (busca, filtro por tipo e páginas). A textura só é baixada quando você clica.
+- Texturas automáticas e modo Automático agora também sugerem materiais do catálogo online e das suas Minhas texturas quando o nome do material combina (ex.: "Calacatta", "Ônix", ou o mesmo nome do catálogo do fabricante). Sem nome combinando, tudo continua como antes.
+- Materiais do SketchUp 2025 (PBR): os mapas de relevo (normal), brilho, metal e sombra de contato entram no render. Só leitura: o modelo não muda.
+- Luminárias que brilham: lente, vidro, acrílico, difusor e lâmpada das luminárias reconhecidas acendem na imagem (mais forte no modo Noite). Atributo blendit "brilho" = nao desliga; = sim faz brilhar também as partes claras.
+- "Sofá light grey" e parecidos não viram mais luminária por engano.
+- Céu: três opções com paisagem para a vista da janela - cidade com prédios, bairro com casas e árvores, jardim.
+- Objetos de decoração (menu Blendit): plantas, vasos, livros e outros modelos 3D reais do Poly Haven. No SketchUp entra só uma caixa leve com a foto; no render entra o modelo de verdade, no mesmo lugar.
+- Variações de proposta (menu Blendit): até 3 opções de troca de materiais na mesma vista; sai um render de cada opção e uma prancha lado a lado. O modelo não muda.

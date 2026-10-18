@@ -59,6 +59,16 @@ def add_ground(spec=None):
     plane.location = (cx, cy, base_z)
     bpy.context.scene.collection.objects.link(plane)
     plane.data.materials.append(_ground_material())
+    if world.get("hdri_ground") and world.get("sky_type") == "hdri":
+        # Landscape sky (city / garden photographed at eye level): the photo
+        # carries its own ground and buildings. The plane stays only to catch
+        # the model's shadows (Cycles) and is hidden from the camera, so the
+        # landscape shows through windows and past the model.
+        plane.is_shadow_catcher = True
+        engine = str(((spec or {}).get("render") or {}).get("engine") or "").upper()
+        if engine != "CYCLES":
+            plane.visible_camera = False
+        plane["bir_hdri_ground"] = True
     return plane
 
 

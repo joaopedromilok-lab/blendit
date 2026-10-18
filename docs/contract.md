@@ -92,7 +92,7 @@ console note):
 |---|---|---|
 | `appearance_class` | string | `generic·metal·glass·mirror·water·ceramic·stone·masonry·concrete·wood·plastic·wallpaint` — coarse class from the asset's schema (drives e.g. the metallic hint) |
 | `glossiness` | number 0..1 \| null | raw Revit glossiness; roughness = 1 − glossiness when present |
-| `maps` | object \| null | texture maps: `{"diffuse": map, "bump": map}` |
+| `maps` | object \| null | texture maps: `{"diffuse", "bump", "roughness", "normal", "metallic", "ao"}` (each a map; `normal`/`metallic`/`ao` come from SketchUp 2025 PBR materials, `pbr: true` = factor x map) |
 
 Each map: `{"uri": "textures/<file>", "scale_m": [sx, sy], "offset_m": [ox, oy],
 "rotation_deg": a, "amount": b}` (`amount` bump only). The **producer**

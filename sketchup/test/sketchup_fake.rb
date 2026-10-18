@@ -76,6 +76,8 @@ module Geom
     def xaxis = Vector3d.new(m[0][0], m[1][0], m[2][0])
     def yaxis = Vector3d.new(m[0][1], m[1][1], m[2][1])
     def zaxis = Vector3d.new(m[0][2], m[1][2], m[2][2])
+    # Como no SketchUp: 16 números por COLUNA (translação nos itens 12..14).
+    def to_a = (0..3).flat_map { |c| (0..3).map { |r| m[r][c].to_f } }
   end
 
   class PolygonMesh
@@ -143,6 +145,30 @@ module Sketchup
     end
     def display_name = name
     def use_alpha? = alpha < 1.0
+
+    # SketchUp 2025 PBR (só quando o teste pede): pbr = { normal: Texture, roughness: Texture,
+    # metallic: Texture, ao: Texture, roughness_factor:, metallic_factor:, normal_scale:, ao_strength:, directx: }
+    WORKFLOW_CLASSIC = 0
+    WORKFLOW_PBR_METALLIC_ROUGHNESS = 1
+    NORMAL_STYLE_OPENGL = 0
+    NORMAL_STYLE_DIRECTX = 1
+    def com_pbr(pbr)
+      define_singleton_method(:workflow) { WORKFLOW_PBR_METALLIC_ROUGHNESS }
+      define_singleton_method(:normal_texture) { pbr[:normal] }
+      define_singleton_method(:normal_enabled?) { !pbr[:normal].nil? }
+      define_singleton_method(:normal_scale) { pbr.fetch(:normal_scale, 1.0) }
+      define_singleton_method(:normal_style) { pbr[:directx] ? NORMAL_STYLE_DIRECTX : NORMAL_STYLE_OPENGL }
+      define_singleton_method(:roughness_texture) { pbr[:roughness] }
+      define_singleton_method(:roughness_enabled?) { true }
+      define_singleton_method(:roughness_factor) { pbr.fetch(:roughness_factor, 1.0) }
+      define_singleton_method(:metallic_texture) { pbr[:metallic] }
+      define_singleton_method(:metalness_enabled?) { !pbr[:metallic].nil? }
+      define_singleton_method(:metallic_factor) { pbr.fetch(:metallic_factor, 1.0) }
+      define_singleton_method(:ao_texture) { pbr[:ao] }
+      define_singleton_method(:ao_enabled?) { !pbr[:ao].nil? }
+      define_singleton_method(:ao_strength) { pbr.fetch(:ao_strength, 1.0) }
+      self
+    end
   end
 
   class Layer
@@ -366,7 +392,9 @@ module Sketchup
         end
       end
       walk.call(@entities, nil)
-      found.compact.uniq
+      (found + (@extra_materials || [])).compact.uniq
     end
+    # Materiais que existem no modelo sem estar pintados em nada (In Model).
+    attr_accessor :extra_materials
   end
 end

@@ -29,6 +29,7 @@ module BlenditSU
       cont = [0]
       percorrer(model.entities, Geom::Transformation.new, nil, '', uso, z_min, cont)
       nomes = Texturas::CATALOGO.to_h { |e| [e[3], e[1]] }
+      @extras = Texturas.extras_auto(regras)
       sugestoes = []
       model.materials.each do |m|
         u = uso[m]
@@ -41,7 +42,8 @@ module BlenditSU
         sugestoes << { 'material' => m.name.to_s, 'nome' => nome, 'tipo' => cat,
                        'rotulo' => BibliotecaMateriais.rotulo(cat), 'cor' => cor_hex(m.color),
                        'confianca' => cl[:confianca].to_s, 'motivo' => cl[:motivo],
-                       'textura' => BibliotecaMateriais.ordenar(cat, rgb, nome, nomes, regras).first }
+                       'textura' => BibliotecaMateriais.ordenar_com_extras(cat, rgb, nome, nomes, regras,
+                                                                           @extras[cat] || []).first }
       end
       sugestoes
     end
@@ -86,8 +88,9 @@ module BlenditSU
       format('#%02x%02x%02x', c.red, c.green, c.blue)
     end
 
+    # Qualquer chave de textura (biblioteca, ph:, acg:, minha:) -> dados ou nil.
     def self.entrada(id)
-      Texturas::CATALOGO.find { |e| e[3] == id }
+      Texturas.resolver(id)
     end
 
     # ------------------------------------------------------------ aplicar
@@ -101,8 +104,8 @@ module BlenditSU
         ent = entrada(esc['textura'].to_s)
         mat = model.materials[esc['material'].to_s]
         next unless ent && mat
-        Sketchup.status_text = "Blendit: baixando textura #{i + 1} de #{escolhas.length} (#{ent[1]})..."
-        diff, bump, (wm, hm), rugo = Texturas.fetch(ent)
+        Sketchup.status_text = "Blendit: baixando textura #{i + 1} de #{escolhas.length} (#{ent['nome']})..."
+        diff, bump, (wm, hm), rugo = Texturas.fetch_chave(ent['chave'])
         prontos << [mat, ent, diff, bump, wm, hm, rugo]
       end
       model.start_operation('Blendit: texturas automáticas', true)
@@ -116,8 +119,8 @@ module BlenditSU
           end
           mat.color = cor
         end
-        mat.set_attribute('blendit', 'textura', ent[3])
-        mat.set_attribute('blendit', 'rugosidade', ent[5])
+        mat.set_attribute('blendit', 'textura', ent['chave'])
+        mat.set_attribute('blendit', 'rugosidade', ent['rugosidade'])
         mat.set_attribute('blendit', 'relevo', bump) if bump
         mat.set_attribute('blendit', 'rugosidade_mapa', rugo) if rugo
       end
@@ -134,7 +137,7 @@ module BlenditSU
     def self.guardar_escolhas(model, escolhas, rejeitados)
       escolhas.each do |esc|                      # baixa já (avisa cedo se faltar internet)
         ent = entrada(esc['textura'].to_s)
-        Texturas.fetch(ent) if ent
+        Texturas.fetch_chave(ent['chave']) if ent
       end
       model.start_operation('Blendit: materiais automáticos no render', true)
       n = 0
@@ -187,10 +190,7 @@ module BlenditSU
                       'metais e cores de pintura ficam como estão.')
         return
       end
-      opcoes = BibliotecaMateriais::CATEGORIAS.select { |k, _| BibliotecaMateriais.com_textura?(k) }.to_h do |k, c|
-        [k, { 'rotulo' => c[:rotulo],
-              'itens' => c[:texturas].keys.map { |id| e = entrada(id); e && { 'id' => id, 'nome' => e[1], 'thumb' => Texturas.thumb(e) } }.compact }]
-      end
+      opcoes = opcoes_por_categoria(sug)
       dlg = UI::HtmlDialog.new(dialog_title: 'Blendit - Texturas automáticas', width: 860, height: 640,
                                preferences_key: 'BlenditAutoTexturas', style: UI::HtmlDialog::STYLE_DIALOG)
       dlg.set_html(html(sug, opcoes))
@@ -214,6 +214,32 @@ module BlenditSU
       end
       dlg.add_action_callback('cancelar') { |_c| dlg.close }
       dlg.show
+    end
+
+    # Opções de cada categoria na janela: biblioteca fixa, depois Minhas
+    # texturas, depois o catálogo online (até MAX_ONLINE por categoria, mais as
+    # que foram sugeridas).
+    MAX_ONLINE = 150
+
+    def self.opcoes_por_categoria(sug)
+      extras = @extras || {}
+      sugeridas = sug.map { |s| s['textura'] }.compact
+      BibliotecaMateriais::CATEGORIAS.select { |k, _| BibliotecaMateriais.com_textura?(k) }.to_h do |k, c|
+        fixas = c[:texturas].keys.map do |id|
+          e = Texturas::CATALOGO.find { |x| x[3] == id }
+          e && { 'id' => id, 'nome' => e[1], 'thumb' => Texturas.thumb(e) }
+        end.compact
+        ex = extras[k] || []
+        minhas = ex.select { |x| x['minha'] }
+        online = ex.reject { |x| x['minha'] }
+        online = online.select { |x| sugeridas.include?(x['chave']) } +
+                 online.reject { |x| sugeridas.include?(x['chave']) }.sort_by { |x| x['nome'].downcase }.first(MAX_ONLINE)
+        mais = (minhas.map { |x| [x, 'Minha: '] } + online.map { |x| [x, 'Online: '] }).map do |x, pre|
+          r = Texturas.resolver(x['chave']) || {}
+          { 'id' => x['chave'], 'nome' => pre + x['nome'], 'thumb' => r['miniatura'].to_s }
+        end
+        [k, { 'rotulo' => c[:rotulo], 'itens' => fixas + mais }]
+      end
     end
 
     def self.html(sug, opcoes)

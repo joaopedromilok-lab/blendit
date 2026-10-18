@@ -30,6 +30,7 @@
 require 'json'
 require 'fileutils'
 require 'tmpdir'
+require_relative 'biblioteca_materiais'
 
 module BlenditSU
   module CatalogoOnline
@@ -364,6 +365,29 @@ module BlenditSU
         alvo = plano([it['nome'], it['nome_original'], it['categoria'], it['grupo'], *Array(it['tags'])].join(' '))
         termos.all? { |t| alvo.include?(t) }
       end.first(limite)
+    end
+
+    # Catálogo unificado em memória (relido só quando o arquivo muda):
+    # chave -> item. Usado pela galeria e pelo modo Automático.
+    def self.indice(cache_dir = dir)
+      arq = arquivo(cache_dir)
+      marca = [cache_dir, File.file?(arq) ? File.mtime(arq).to_f : 0.0]
+      return @indice if @indice && @indice_marca == marca
+      @indice_marca = marca
+      @indice = unificado(cache_dir).to_h { |it| [it['chave'], it] }
+    end
+
+    def self.item_por_chave(chave, cache_dir = dir)
+      indice(cache_dir)[chave.to_s]
+    end
+
+    # Itens que não estão na biblioteca fixa, já com o tipo em português e a
+    # categoria do modo Automático (BibliotecaMateriais.classificar_item).
+    def self.novos(cache_dir = dir)
+      indice(cache_dir).values.reject { |it| it['legado'] }.map do |it|
+        tipo, cat = BibliotecaMateriais.classificar_item(it)
+        it.merge('tipo' => tipo, 'categoria_auto' => cat)
+      end
     end
 
     # Resumo para mostrar: totais por fonte, legados, última atualização.

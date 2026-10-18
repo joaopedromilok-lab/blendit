@@ -121,7 +121,7 @@ end
 BlenditSU::Atualizacao.verificar
 puts "instalado: #{Sketchup.installed}"
 puts UI.log.last
-remote['versao'] = '0.4.7'
+remote['versao'] = '0.5.0'
 BlenditSU::Atualizacao.verificar
 puts UI.log.last
 puts "timer agendado: #{UI.timers.length}"
@@ -154,3 +154,20 @@ puts '--- Catálogo online (sem rede)'
 BlenditSU::CatalogoOnline.http = ->(_u) { raise BlenditSU::CatalogoOnline::ErroFonte, 'sem rede no teste' }
 BlenditSU.atualizar_catalogo_online
 puts UI.log.last.lines.first(4).join
+
+puts '--- Variações de proposta'
+Sketchup.write_default('BlenditSketchUp', 'noite', '0')
+Sketchup.write_default('BlenditSketchUp', 'ceu', 'simulado')
+antes = (BlenditSU.queues || []).length
+cfg = { 'opcoes' => [{ 'nome' => 'Original', 'trocas' => {} },
+                     { 'nome' => 'Tijolo no lugar do reboco', 'trocas' => { 'Reboco branco' => 'Tijolo aparente' } },
+                     { 'nome' => 'Concreto', 'trocas' => { 'Reboco branco' => 'Concreto', 'Nao existe' => 'Concreto' } }] }
+n = BlenditSU::Variacoes.renderizar(Sketchup.active_model, cfg, false)
+jobs, log = BlenditSU.queues.last
+puts "opções renderizadas: #{n}, jobs na fila: #{jobs.length}, log: #{File.basename(log)}"
+raise 'variações: esperava 3 jobs' unless n == 3 && jobs.length == 3 && BlenditSU.queues.length == antes + 1
+specs = Dir.glob(File.join(ENV['LOCALAPPDATA'], '**', '*_opcao{A,B,C}', 'scene_spec.json')).sort
+nomes = specs.map { |f| JSON.parse(File.read(f))['materials'].map { |m| m['name'] } }
+puts "materiais por opção: #{nomes.map { |l| l.include?('Reboco branco') ? 'com reboco' : 'sem reboco' }.inspect}"
+raise 'variações: troca não aplicada' unless nomes.length == 3 && nomes[0].include?('Reboco branco') && !nomes[1].include?('Reboco branco') && !nomes[2].include?('Reboco branco')
+puts 'Variações OK (modelo do SketchUp não alterado)'

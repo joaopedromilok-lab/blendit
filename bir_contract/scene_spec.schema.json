@@ -46,6 +46,22 @@
     "camera": { "$ref": "#/$defs/camera" },
     "sun": { "$ref": "#/$defs/sun" },
     "lights": { "type": "array", "items": { "$ref": "#/$defs/light" } },
+    "assets": {
+      "type": "array",
+      "description": "Ready-made 3D models placed in the scene (SketchUp decor proxies -> real Poly Haven models). Optional.",
+      "items": {
+        "type": "object",
+        "required": ["id", "uri", "matrix"],
+        "properties": {
+          "id": { "type": "string" },
+          "source": { "type": "string" },
+          "name": { "type": "string" },
+          "uri": { "type": "string", "description": "glTF file inside the bundle (assets/<id>/...)." },
+          "matrix": { "type": "array", "items": { "type": "number" }, "minItems": 16, "maxItems": 16,
+                      "description": "4x4 placement, column-major (translation in items 12..14), source units and axes. The model's base centre goes to the placement origin." }
+        }
+      }
+    },
     "world": { "$ref": "#/$defs/world" },
     "render": { "$ref": "#/$defs/render" }
   },
@@ -89,7 +105,10 @@
               "properties": {
                 "diffuse": { "$ref": "#/$defs/texture_map" },
                 "bump": { "$ref": "#/$defs/texture_map" },
-                "roughness": { "$ref": "#/$defs/texture_map" }
+                "roughness": { "$ref": "#/$defs/texture_map" },
+                "normal": { "$ref": "#/$defs/texture_map", "description": "Tangent-space normal map (SketchUp 2025 PBR). Used only with mesh UVs." },
+                "metallic": { "$ref": "#/$defs/texture_map", "description": "Metallic map, multiplied by the material's metallic (SketchUp 2025 PBR)." },
+                "ao": { "$ref": "#/$defs/texture_map", "description": "Ambient-occlusion map, multiplies the colour by `strength` (SketchUp 2025 PBR)." }
               }
             }
           ]
@@ -108,6 +127,9 @@
         "alpha": { "type": "boolean" },
         "tint": { "$ref": "#/$defs/rgb", "description": "Linear colour the map is tinted to (automatic catalogue textures keep the project colour)." },
         "auto": { "type": "boolean", "description": "Map chosen automatically from the local catalogue (render-only)." },
+        "strength": { "type": "number", "description": "normal: normal-map scale; ao: 0..1 strength." },
+        "directx": { "type": "boolean", "description": "normal: DirectX convention (green down)." },
+        "pbr": { "type": "boolean", "description": "SketchUp 2025 PBR map: the material factor multiplies the map (glTF semantics) instead of the map being rescaled around it." },
         "uv": { "type": "boolean", "description": "true: the geometry carries TEXCOORD_0 (the source app's own texture placement) for this material; sample this map through it. Absent/false: real-world box projection with scale_m." }
       }
     },
@@ -179,7 +201,8 @@
         "has_site": { "type": "boolean" },
         "hdri_strength": { "type": "number" },
         "hdri_rotation_deg": { "type": ["number", "null"] },
-        "hdri_normalize": { "type": "boolean" }
+        "hdri_normalize": { "type": "boolean" },
+        "hdri_ground": { "type": "boolean", "description": "The HDRI shows a landscape with its own ground (city, garden): the ground plane only catches shadows and is not seen by the camera." }
       }
     },
     "render": {

@@ -10,6 +10,8 @@ require_relative 'atualizacao'
 require_relative 'ceus'
 require_relative 'auto_texturas'
 require_relative 'catalogo_online'
+require_relative 'objetos'
+require_relative 'variacoes'
 
 module BlenditSU
   PLUGIN_DIR = File.dirname(__FILE__).freeze
@@ -197,6 +199,7 @@ module BlenditSU
              dois_pontos: pref('dois_pontos', '1') == '1',
              tom: pref('tom', 'natural'), brilho: pref('brilho', '0').to_f,
              materiais: pref('materiais', 'preservar') }
+    opts[:trocas] = extra[:trocas] if extra[:trocas]
     m = opts[:mode].to_s
     if !opts[:noite] && %w[realistic specular].include?(m) && Ceus.escolhido != 'simulado'
       opts[:ceu] = Ceus.opcoes
@@ -559,8 +562,8 @@ module BlenditSU
     UI.messagebox("Catálogo: #{st[:total]} materiais.\n\n#{linhas.join("\n")}\n\n" \
                   "Licença: CC0 nas duas fontes (Poly Haven ToS; docs.ambientcg.com/license).\n" \
                   "Texturas da API Poly Haven (polyhaven.com) e do ambientCG (ambientcg.com).\n\n" \
-                  'Nesta versão os materiais novos ficam catalogados; a galeria e o modo ' \
-                  'Automático continuam usando a biblioteca fixa.')
+                  'Os materiais novos aparecem na Biblioteca de materiais, aba "Catálogo online", ' \
+                  'e o modo Automático passa a considerá-los quando o nome do material combina.')
   rescue StandardError => e
     UI.messagebox("Não foi possível atualizar o catálogo: #{e.message}")
   ensure
@@ -593,6 +596,8 @@ module BlenditSU
     menu.add_item(c_scenes)
     menu.add_item(c_sun)
     menu.add_item(c_lib)
+    menu.add_item('Objetos de decoração (plantas, vasos, livros)...') { Objetos.show }
+    menu.add_item('Variações de proposta (opções lado a lado)...') { Variacoes.show }
     mats = menu.add_submenu('Materiais no render')
     [['preservar', 'Preservar (como no SketchUp - padrão)'],
      ['estrito', 'Preservar estritamente (sem nenhum ajuste automático)'],

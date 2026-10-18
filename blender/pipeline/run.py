@@ -55,6 +55,11 @@ def prepare_scene(loaded, spec):
     scale = float(spec.get("units", {}).get("scale_to_meters", 1.0))
     apply_look(spec)
     setup_camera(spec, scale)        # frames to geometry BEFORE the ground exists
+    try:
+        from .assets import import_assets  # decor models in place of their proxies
+        import_assets(loaded, spec, scale)
+    except Exception as e:
+        print("[Blendit] decor models skipped: %s" % e)
     setup_world(spec, scale)
     try:
         add_ground(spec)             # grounds the model; never fatal

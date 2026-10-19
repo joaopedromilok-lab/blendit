@@ -55,6 +55,10 @@ _SCALE = 1.0
 _MODEL_NAME = ""  # friendly model label for the HUD readout
 _BUILD_ARGS = None  # parsed args, handed from main() to the deferred build
 _OVERRIDE_DIR = None  # where material_overrides.json lives (the bundle dir)
+# Exposure the pipeline set for this session (last build / mode switch). The
+# Exposure slider's distance from it is the user's own adjustment, carried on
+# top of the auto exposure in Render Final.
+_EXPOSURE_BASE = None
 
 _TITLE = "BLENDIT  -  LIVE"
 _CONTROLS = [
@@ -775,7 +779,8 @@ def _apply_mode(mode):
 
 def _sync_settings_from_scene():
     """Pull the current scene look back into the sliders (after build / mode)."""
-    global _SYNCING
+    global _SYNCING, _EXPOSURE_BASE
+    _EXPOSURE_BASE = float(bpy.context.scene.view_settings.exposure)
     st = getattr(bpy.context.scene, "bir", None)
     if st is None:
         return
@@ -1897,35 +1902,87 @@ def _render_still_at(out, samples):
     try:                                    # final samples are final-only: remember
         prev_eevee_samples = sc.eevee.taa_render_samples
         prev_cycles_samples = sc.cycles.samples
+        prev_denoise = sc.cycles.use_denoising
     except Exception:
-        prev_eevee_samples = prev_cycles_samples = None
+        prev_eevee_samples = prev_cycles_samples = prev_denoise = None
+    vs = sc.view_settings                   # the final look is final-only too
+    prev_view = (vs.exposure, getattr(vs, "use_white_balance", None),
+                 getattr(vs, "white_balance_temperature", None))
     from blender.pipeline.engine import _eevee_engine_id
-    if npr_mode:
-        sc.render.engine = _eevee_engine_id()
-        sc.eevee.taa_render_samples = int(samples)
-    elif osl_mode:
-        sc.render.engine = "CYCLES"
-        # emission-only shading: converges in a few samples, so don't burn
-        # CPU minutes on the lit-mode final_samples default
-        sc.cycles.samples = min(int(samples), 64)
-        sc.cycles.use_denoising = False
-        _refresh_crosshatch_key(st)     # key follows the FRAMED shot
-    else:
-        sc.render.engine = "CYCLES"
-        sc.cycles.samples = int(samples)
-        sc.cycles.use_denoising = True
-    sc.render.image_settings.file_format = "PNG"
-    sc.render.filepath = out
-    bpy.ops.render.render(write_still=True)
-    sc.render.engine = prev_engine          # restore the fast viewport engine
-    try:                                    # ...and the configured sample counts
-        if prev_eevee_samples is not None:
-            sc.eevee.taa_render_samples = prev_eevee_samples
-        if prev_cycles_samples is not None:
-            sc.cycles.samples = prev_cycles_samples
-    except Exception:
-        pass
+    try:
+        if npr_mode:
+            sc.render.engine = _eevee_engine_id()
+            sc.eevee.taa_render_samples = int(samples)
+        elif osl_mode:
+            sc.render.engine = "CYCLES"
+            # emission-only shading: converges in a few samples, so don't burn
+            # CPU minutes on the lit-mode final_samples default
+            sc.cycles.samples = min(int(samples), 64)
+            sc.cycles.use_denoising = False
+            _refresh_crosshatch_key(st)     # key follows the FRAMED shot
+        else:
+            sc.render.engine = "CYCLES"
+            sc.cycles.samples = int(samples)
+            sc.cycles.use_denoising = True
+            _final_interior_look(sc, prev_engine)
+        sc.render.image_settings.file_format = "PNG"
+        sc.render.filepath = out
+        bpy.ops.render.render(write_still=True)
+    finally:
+        sc.render.engine = prev_engine      # restore the fast viewport engine
+        try:                                # ...the configured sample counts
+            if prev_eevee_samples is not None:
+                sc.eevee.taa_render_samples = prev_eevee_samples
+            if prev_cycles_samples is not None:
+                sc.cycles.samples = prev_cycles_samples
+            if prev_denoise is not None:
+                sc.cycles.use_denoising = prev_denoise
+        except Exception:
+            pass
+        vs.exposure = prev_view[0]          # ...and the viewport's look
+        if prev_view[1] is not None:
+            vs.use_white_balance = prev_view[1]
+            vs.white_balance_temperature = prev_view[2]
     return out
+
+
+def _final_interior_look(sc, session_engine):
+    """Interior Render Final = the headless look (run._render): the room is
+    metered in Cycles (autoexpose.apply_auto), not left at the exposure /
+    white balance apply_interior picked for the session's engine (EEVEE by
+    default). The Exposure slider's offset from the pipeline's value is the
+    user's adjustment and stays on top. Caller restores the view settings."""
+    if _SPEC is None or not sc.get("bir_interior"):
+        return
+    vs = sc.view_settings
+    user = 0.0 if _EXPOSURE_BASE is None else float(vs.exposure) - _EXPOSURE_BASE
+    from blender.pipeline.autoexpose import apply_auto
+    try:
+        metered = apply_auto(_SPEC)
+    except Exception as e:
+        print("[Blendit] auto exposure skipped: %s" % e)
+        metered = False
+    if metered:
+        vs.exposure = float(vs.exposure) + user
+        return
+    # Auto exposure off (or failed): the view carries the interior boost / white
+    # balance of the engine apply_interior ran under - NOT necessarily the
+    # session's current one (the Engine toggle doesn't re-run it).
+    built = str(sc.get("bir_interior_engine") or
+                ("CYCLES" if session_engine == "CYCLES" else "EEVEE"))
+    if built == "CYCLES":
+        return                              # already the Cycles values
+    # Swap the EEVEE values for the Cycles ones, as a Cycles headless build
+    # would have.
+    from blender.pipeline.interior import engine_look
+    from blender.pipeline.tone import _TONE_SHIFT_K
+    boost_s, _wb = engine_look(_SPEC, False)
+    boost_c, wb_c = engine_look(_SPEC, True)
+    vs.exposure = float(vs.exposure) + (boost_c - boost_s)
+    if hasattr(vs, "use_white_balance"):
+        tone = str((_SPEC.get("render") or {}).get("tone", "natural")).lower()
+        vs.use_white_balance = True
+        vs.white_balance_temperature = wb_c + _TONE_SHIFT_K.get(tone, 0.0)
 
 
 def _do_render_final():

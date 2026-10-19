@@ -125,12 +125,35 @@ def add_hidden_ceiling():
     return True
 
 
+def _is_day(spec):
+    # Daytime: the window is the key light, the fixtures only fill in (as in an
+    # interior photo). Lamps at full power made day shots look like evenings,
+    # orange and flat. At night (sun off) they stay at full power.
+    return float((spec.get("sun") or {}).get("strength", 1.0) or 0.0) > 0.0 \
+        or float((spec.get("world") or {}).get("strength", 1.0) or 0.0) > 0.2
+
+
+def engine_look(spec, cycles):
+    """-> (exposure boost, white balance K) of the interior look for one engine.
+    Live View builds in EEVEE but Render Final renders in Cycles, so it asks
+    for the Cycles values here instead of keeping the EEVEE ones."""
+    boost = _EXPOSURE_BOOST_CYCLES if cycles else _EXPOSURE_BOOST
+    wb = _WHITE_BALANCE_K_CYCLES if cycles else _WHITE_BALANCE_K
+    if str((spec.get("world") or {}).get("sky_type")) == "hdri":
+        # A photographed sky is far less blue than the simulated one: keep the
+        # white point close to neutral or the room turns pink/orange.
+        wb = _WHITE_BALANCE_K_HDRI_CYCLES if cycles else _WHITE_BALANCE_K_HDRI
+    if cycles and not _is_day(spec):
+        wb = _WHITE_BALANCE_K_CYCLES_NIGHT      # lamp-lit: keep some warmth
+    return boost, wb
+
+
 def apply_interior(spec):
     rspec = spec.get("render", {}) or {}
     mode = str(rspec.get("mode", "realistic"))
     want = rspec.get("interior", "auto")
     scene = bpy.context.scene
-    for k in ("bir_wb_base", "bir_interior"):
+    for k in ("bir_wb_base", "bir_interior", "bir_interior_engine"):
         if k in scene:
             del scene[k]
     if mode not in LIT_MODES or want is False or str(want).lower() in ("false", "off", "0"):
@@ -157,19 +180,8 @@ def apply_interior(spec):
     scene = bpy.context.scene
     view = scene.view_settings
     cycles = scene.render.engine == "CYCLES"
-    boost = _EXPOSURE_BOOST_CYCLES if cycles else _EXPOSURE_BOOST
-    wb = _WHITE_BALANCE_K_CYCLES if cycles else _WHITE_BALANCE_K
-    if str((spec.get("world") or {}).get("sky_type")) == "hdri":
-        # A photographed sky is far less blue than the simulated one: keep the
-        # white point close to neutral or the room turns pink/orange.
-        wb = _WHITE_BALANCE_K_HDRI_CYCLES if cycles else _WHITE_BALANCE_K_HDRI
-    # Daytime: the window is the key light, the fixtures only fill in (as in an
-    # interior photo). Lamps at full power made day shots look like evenings,
-    # orange and flat. At night (sun off) they stay at full power.
-    day = float((spec.get("sun") or {}).get("strength", 1.0) or 0.0) > 0.0 \
-        or float((spec.get("world") or {}).get("strength", 1.0) or 0.0) > 0.2
-    if cycles and not day:
-        wb = _WHITE_BALANCE_K_CYCLES_NIGHT      # lamp-lit: keep some warmth
+    boost, wb = engine_look(spec, cycles)
+    day = _is_day(spec)
     view.exposure = float(view.exposure) + boost
     # EEVEE lights a room mostly with the blue sky probe -> warm it to neutral;
     # Cycles bounces the warm lamps physically -> cool it slightly.
@@ -199,6 +211,9 @@ def apply_interior(spec):
             if hasattr(cy, attr):
                 setattr(cy, attr, max(getattr(cy, attr), val))
     scene["bir_interior"] = 1
+    # Which engine's boost / white balance the view now carries: Live View can
+    # switch engines later without re-running this step.
+    scene["bir_interior_engine"] = "CYCLES" if cycles else "EEVEE"
     print("[Blendit] interior detected: exposure +%.2f, white balance %dK, GI on"
           % (boost, wb))
     return True

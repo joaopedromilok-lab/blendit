@@ -1,5 +1,4 @@
-- "Abrir no Blender" > Render Final agora sai igual ao "Renderizar vista": antes, em ambientes internos, a imagem final podia sair bem mais escura e amarelada (a exposição automática não era aplicada e o ajuste era o do modo rápido).
-- O sol no "Abrir no Blender" agora fica na mesma posição do "Renderizar vista" (antes ia para uma posição padrão, mudando a luz e as sombras que entram pela janela).
-- Trocar entre EEVEE e Cycles no painel não apaga mais as quinas arredondadas e as pequenas imperfeições das superfícies.
-- O Render Final usa as mesmas configurações de qualidade do "Renderizar vista" (menos pontinhos brancos perto de vidro e metal; placa de vídeo quando houver).
-- Lembrete: a qualidade "Rascunho" não remove o ruído da imagem, de propósito (é a mais rápida). Para entregar, use "Boa" ou acima.
+- Abajures que não acendiam: em abajures com pé alto e maciço, a luz ficava presa dentro do pé e o ambiente à noite saía escuro e azulado. Agora a luz fica sob a cúpula e ilumina o ambiente com a luz quente do abajur. Vale também para cenas já exportadas.
+- Brilho em volta das luzes (bloom) agora é igual em qualquer ambiente: antes sumia em ambientes escuros e à noite (justo onde as luminárias mais aparecem) e exagerava em ambientes muito claros.
+- Pasta dos renders: ao confirmar a janela Configurações, a pasta podia virar um caminho quebrado (ex.: "C:Usersyasmi") e as imagens iam parar em outra pasta, dentro de Documentos. Corrigido; uma pasta já estragada volta sozinha para a pasta padrão (Documentos\Blendit Renders).
+- Dica: o Blendit reconhece a luminária pelo nome do componente (abajur, pendente, spot, arandela, plafon...).

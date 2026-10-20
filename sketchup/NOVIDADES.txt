@@ -1,2 +1,5 @@
-- Exposição e balanço de branco automáticos (renders de interiores) agora medem a LUZ da cena, não a cor do projeto: paredes azuis, terracota ou escuras não saem mais clareadas nem "corrigidas" para o laranja/rosa. Ambientes claros (paredes brancas) ficam com a mesma exposição de antes.
-- Ambientes com paredes escuras passam a sair mais escuros, como numa foto real; se quiser mais claro, use o menu Brilho.
+- "Abrir no Blender" > Render Final agora sai igual ao "Renderizar vista": antes, em ambientes internos, a imagem final podia sair bem mais escura e amarelada (a exposição automática não era aplicada e o ajuste era o do modo rápido).
+- O sol no "Abrir no Blender" agora fica na mesma posição do "Renderizar vista" (antes ia para uma posição padrão, mudando a luz e as sombras que entram pela janela).
+- Trocar entre EEVEE e Cycles no painel não apaga mais as quinas arredondadas e as pequenas imperfeições das superfícies.
+- O Render Final usa as mesmas configurações de qualidade do "Renderizar vista" (menos pontinhos brancos perto de vidro e metal; placa de vídeo quando houver).
+- Lembrete: a qualidade "Rascunho" não remove o ruído da imagem, de propósito (é a mais rápida). Para entregar, use "Boa" ou acima.

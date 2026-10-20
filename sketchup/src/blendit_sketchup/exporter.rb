@@ -336,7 +336,10 @@ module BlenditSU
                 l << [[cx, cy, mx[2] + below], [0, 0, 1]] if attr(e, defn, 'facho').to_s.downcase == 'duplo'
                 l
               when :abajur
-                [[[cx, cy, cz], [0, 0, -1]]]
+                # A lâmpada fica sob a cúpula, no alto da peça: no centro da
+                # caixa ela caía dentro da base (pé alto e maciço) e não
+                # iluminava nada. O Blender ainda solta uma luz presa.
+                [[[cx, cy, mn[2] + (mx[2] - mn[2]) * 0.75], [0, 0, -1]]]
               when :fita
                 along = (mx[0] - mn[0]) >= (mx[1] - mn[1]) ? 0 : 1
                 len = mx[along] - mn[along]

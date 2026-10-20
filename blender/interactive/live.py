@@ -1950,6 +1950,11 @@ def _render_still_at(out, samples):
             enable_gpu(sc)
             _speed_up_cycles(sc, True)
             _final_interior_look(sc, prev_engine)
+            try:                            # bloom threshold follows the final exposure
+                from blender.pipeline.realism import sync_bloom
+                sync_bloom(sc)
+            except Exception:
+                pass
         sc.render.image_settings.file_format = "PNG"
         sc.render.filepath = out
         bpy.ops.render.render(write_still=True)

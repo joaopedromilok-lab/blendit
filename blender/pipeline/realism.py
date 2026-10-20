@@ -16,6 +16,7 @@ import bpy
 LIT_MODES = ("realistic", "specular")
 _TAG = "BIR_Imperfeicao"
 _COMP = "BIR_Fotografia"
+_THRESHOLD = 1.2           # bloom threshold in the exposed image (see sync_bloom)
 
 
 def apply_realism(spec):
@@ -110,7 +111,7 @@ def _bloom(scene):
         gl.location = (0, 0)
         _set(gl, "Type", "Bloom")
         _set(gl, "Quality", "High")
-        _set(gl, "Threshold", 1.2)
+        _set(gl, "Threshold", _THRESHOLD)
         _set(gl, "Strength", 0.25)
         _set(gl, "Size", 0.5)
         out = ng.nodes.new("NodeGroupOutput")
@@ -118,6 +119,23 @@ def _bloom(scene):
         ng.links.new(rl.outputs["Image"], gl.inputs["Image"])
         ng.links.new(gl.outputs["Image"], out.inputs[0])
     scene.compositing_node_group = ng
+    sync_bloom(scene)
+    return True
+
+
+def sync_bloom(scene):
+    """Keep the bloom threshold where it is in the final PHOTO. The Glare node
+    sees scene-linear light, before the view exposure; auto exposure moves that
+    exposure by up to +-3 EV per room, so a fixed linear threshold made dim /
+    night rooms lose their lamp glow and very bright rooms glow everywhere.
+    Call after the exposure is final (right before rendering)."""
+    ng = getattr(scene, "compositing_node_group", None)
+    if ng is None or not ng.name.startswith(_COMP):
+        return False
+    gl = next((n for n in ng.nodes if n.type == "GLARE"), None)
+    if gl is None:
+        return False
+    _set(gl, "Threshold", _THRESHOLD * 2.0 ** -float(scene.view_settings.exposure))
     return True
 
 

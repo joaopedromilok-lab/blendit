@@ -151,6 +151,11 @@ def _render(out_path, spec):
             apply_auto(spec)
         except Exception as e:
             print("[Blendit] auto exposure skipped: %s" % e)
+    try:
+        from .realism import sync_bloom     # bloom threshold follows the exposure
+        sync_bloom(scene)
+    except Exception:
+        pass
     scene.render.image_settings.file_format = "PNG"
     scene.render.filepath = out_path
     bpy.ops.render.render(write_still=True)

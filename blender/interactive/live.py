@@ -611,6 +611,24 @@ def _update_engine(self, context):
         apply_materials(_LOADED, engine=self.engine)
         if self.mode == "specular":     # re-assert the gloss slider on the rebuild
             _helpers().set_glossiness(_LOADED, 1.0 - self.gloss)
+        # The rebuilt materials lost the layers prepare_scene / _apply_mode add
+        # after the preset (cut fill, imperfections, rounded edges): a final
+        # rendered after the toggle came out razor-edged and CG-perfect.
+        try:
+            from blender.pipeline.section_fill import apply_section_fill
+            apply_section_fill(_LOADED, _SPEC)
+        except Exception:
+            pass
+        try:
+            from blender.pipeline.realism import apply_realism
+            apply_realism(_SPEC)
+        except Exception:
+            pass
+        try:
+            from blender.pipeline.bevel import apply_bevel
+            apply_bevel(_SPEC)
+        except Exception:
+            pass
     # If clouds are in the scene, re-apply their volume step / sample settings for the
     # engine we just switched to (Cycles wants step-rate; EEVEE wants sample counts).
     from blender.interactive import clouds
@@ -1908,6 +1926,8 @@ def _render_still_at(out, samples):
     vs = sc.view_settings                   # the final look is final-only too
     prev_view = (vs.exposure, getattr(vs, "use_white_balance", None),
                  getattr(vs, "white_balance_temperature", None))
+    prev_cycles = _rna_values(sc.cycles)    # ...and so is the final Cycles setup
+    prev_simplify = (sc.render.use_simplify, sc.render.simplify_subdivision_render)
     from blender.pipeline.engine import _eevee_engine_id
     try:
         if npr_mode:
@@ -1924,6 +1944,11 @@ def _render_still_at(out, samples):
             sc.render.engine = "CYCLES"
             sc.cycles.samples = int(samples)
             sc.cycles.use_denoising = True
+            # The headless Cycles setup (setup_engine only ran for the session's
+            # engine, EEVEE by default): GPU, no caustics, 4K texture cap, ...
+            from blender.pipeline.engine import enable_gpu, _speed_up_cycles
+            enable_gpu(sc)
+            _speed_up_cycles(sc, True)
             _final_interior_look(sc, prev_engine)
         sc.render.image_settings.file_format = "PNG"
         sc.render.filepath = out
@@ -1939,11 +1964,29 @@ def _render_still_at(out, samples):
                 sc.cycles.use_denoising = prev_denoise
         except Exception:
             pass
+        for name, value in prev_cycles.items():   # ...the session's Cycles setup
+            try:
+                if getattr(sc.cycles, name) != value:
+                    setattr(sc.cycles, name, value)
+            except Exception:
+                pass
+        sc.render.use_simplify, sc.render.simplify_subdivision_render = prev_simplify
         vs.exposure = prev_view[0]          # ...and the viewport's look
         if prev_view[1] is not None:
             vs.use_white_balance = prev_view[1]
             vs.white_balance_temperature = prev_view[2]
     return out
+
+
+def _rna_values(struct):
+    """Every writable scalar setting of a Blender struct (e.g. scene.cycles),
+    to put back exactly what a final render changed."""
+    return {p.identifier: getattr(struct, p.identifier)
+            for p in struct.bl_rna.properties
+            if not p.is_readonly and p.identifier != "rna_type"
+            and p.type in ("BOOLEAN", "INT", "FLOAT", "ENUM", "STRING")
+            and not getattr(p, "is_array", False)
+            and not getattr(p, "array_length", 0)}
 
 
 def _final_interior_look(sc, session_engine):

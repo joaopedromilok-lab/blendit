@@ -10,9 +10,17 @@ def file_loaded(f) = ($loaded[f] = true)
 module Sketchup
   @prefs = {}
   @platform = :platform_win
+  # Como o SketchUp de verdade: guarda o texto como veio e, ao ler, interpreta
+  # "\" como escape (texto Ruby entre aspas) - "C:\Users" volta "C:Users".
+  SU_ESC = { 'n' => "\n", 't' => "\t", 'b' => "\b", 'r' => "\r", 'a' => "\a",
+             'e' => "\e", 'f' => "\f", 'v' => "\v", 's' => ' ', '\\' => '\\' }.freeze
   class << self
     attr_accessor :platform, :status_text, :model
-    def read_default(_s, k, d) = @prefs.fetch(k, d)
+    def read_default(_s, k, d)
+      v = @prefs.fetch(k, nil)
+      return d if v.nil?
+      v.is_a?(String) ? v.gsub(/\\(.)/) { SU_ESC.fetch(Regexp.last_match(1), Regexp.last_match(1)) } : v
+    end
     def write_default(_s, k, v) = (@prefs[k] = v)
     def active_model = @model
   end
@@ -171,3 +179,16 @@ nomes = specs.map { |f| JSON.parse(File.read(f))['materials'].map { |m| m['name'
 puts "materiais por opção: #{nomes.map { |l| l.include?('Reboco branco') ? 'com reboco' : 'sem reboco' }.inspect}"
 raise 'variações: troca não aplicada' unless nomes.length == 3 && nomes[0].include?('Reboco branco') && !nomes[1].include?('Reboco branco') && !nomes[2].include?('Reboco branco')
 puts 'Variações OK (modelo do SketchUp não alterado)'
+
+puts '--- Pasta dos renders com caminho do Windows'
+# Configurações guarda o que foi digitado com "\": tem de voltar intacto.
+def UI.inputbox(_p, defaults, *_) = [defaults[0], defaults[1], 'C:\Users\yasmi\Documents\Blendit Renders', '']
+BlenditSU.settings
+salvo = BlenditSU.pref('output_dir')
+raise "pasta dos renders voltou como #{salvo.inspect}" unless salvo == 'C:/Users/yasmi/Documents/Blendit Renders'
+# Preferência já estragada (instalações antigas): ignora e volta ao padrão.
+Sketchup.write_default(BlenditSU::PREFS, 'output_dir', 'C:Usersyasmi/Documents/Blendit Renders')
+pasta = BlenditSU.output_dir
+raise "usou a pasta estragada #{pasta.inspect}" if pasta.include?('Usersyasmi')
+raise 'preferência estragada não foi limpa' unless BlenditSU.pref('output_dir').nil?
+puts "Pasta dos renders OK (#{salvo} | padrão: #{pasta})"

@@ -68,10 +68,29 @@ module BlenditSU
     Sketchup.platform == :platform_win
   end
 
+  # Caminho para guardar nas preferências: sem aspas e com "/" (o Windows
+  # aceita). O SketchUp devolve o texto guardado interpretando "\" como
+  # escape: "C:\Users\yasmi" voltava como "C:Usersyasmi" (e "\b", "\a"...
+  # viravam caracteres de controle), e os renders iam para outra pasta.
+  def self.path_pref(p)
+    p.to_s.strip.delete('"').tr('\\', '/')
+  end
+
+  # Pasta guardada que ainda dá para usar: absoluta e sem caracteres de
+  # controle. "C:Usersyasmi/..." (estrago antigo) não é.
+  def self.usable_dir?(d)
+    s = d.to_s
+    !s.empty? && s !~ /[[:cntrl:]]/ && File.absolute_path?(s)
+  end
+
   def self.output_dir
     d = pref('output_dir')
+    unless d.nil? || usable_dir?(d)
+      set_pref('output_dir', '')        # caminho estragado: volta ao padrão
+      d = nil
+    end
     unless d
-      base = ENV['USERPROFILE'] || ENV['HOME'] || Dir.home
+      base = path_pref(ENV['USERPROFILE'] || ENV['HOME'] || Dir.home)
       docs = File.join(base, 'Documents')
       d = File.join(File.directory?(docs) ? docs : base, 'Blendit Renders')
     end
@@ -501,8 +520,9 @@ module BlenditSU
     m = MODES.find { |x| x[1] == res[0] }
     set_pref('mode', m[0]) if m
     set_pref('quality', res[1]) if QUALITY.key?(res[1])
-    set_pref('output_dir', res[2].to_s.strip) unless res[2].to_s.strip.empty?
-    exe = res[3].to_s.strip.delete('"')
+    out_dir = path_pref(res[2])
+    set_pref('output_dir', out_dir) unless out_dir.empty?
+    exe = path_pref(res[3])
     if exe.empty?
       set_pref('blender_exe', '')
     elsif File.file?(exe)

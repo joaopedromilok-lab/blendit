@@ -123,14 +123,91 @@ def setup_lights(spec, scale=1.0):
         return None
     coll = _get_collection()
     scale = float(scale)
-    made = 0
+    made = []
     for i, L in enumerate(lights):
         try:
-            _build_one(coll, L, i, scale)
-            made += 1
+            made.append(_build_one(coll, L, i, scale))
         except Exception:
             pass
+    try:
+        _free_sealed(made, _see_through(spec))
+    except Exception as e:
+        print("[Blendit] sealed-light check skipped: %s" % e)
     return coll if made else None
+
+
+# A light sealed inside a solid part of its own fixture lights nothing: the
+# SketchUp exporter puts a table lamp's light at the centre of the lamp's
+# bounding box, which on a lamp with a tall solid base is INSIDE the base (a
+# real model's night render came out lit by the sky alone). Such a light is
+# moved up in small steps until it is out - into the shade, where the bulb is.
+# Glass / diffusers / glowing parts let the light through, so they don't seal.
+_SEAL_REACH = 0.5      # m: EVERY ray hits an opaque surface this close = sealed
+_SEAL_STEP = 0.03      # m per step up
+_SEAL_MAX = 0.6        # m: give up (leave it) beyond this
+
+
+def _base_name(name):
+    """'Vidro.001' -> 'vidro' (Blender's duplicate suffix dropped)."""
+    head, _dot, tail = str(name).rpartition(".")
+    return (head if head and tail.isdigit() else str(name)).lower()
+
+
+def _see_through(spec):
+    """Names of the bundle's materials light passes through (glass, diffusers,
+    glowing parts) - a light inside a glass globe is not sealed in."""
+    out = set()
+    for m in spec.get("materials") or []:
+        if float(m.get("transparency") or 0.0) > 0.05 or m.get("emissive") \
+                or str(m.get("appearance_class") or "") == "emissive":
+            out.add(_base_name(m.get("name") or m.get("id") or ""))
+    return out
+
+
+def _seal_dirs():
+    import mathutils
+    dirs = [(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)]
+    dirs += [(x, y, z) for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)]
+    return [mathutils.Vector(d).normalized() for d in dirs]
+
+
+def _sealed(scene, depsgraph, point, dirs, see_through):
+    for d in dirs:
+        hit, _loc, _nrm, idx, obj, _mtx = scene.ray_cast(depsgraph, point, d,
+                                                         distance=_SEAL_REACH)
+        if not hit:
+            return False                   # this way the light gets out
+        try:
+            mat = obj.material_slots[obj.data.polygons[idx].material_index].material
+        except Exception:
+            mat = None
+        if mat is not None and _base_name(mat.name) in see_through:
+            return False                   # through glass / a diffuser
+    return True
+
+
+def _free_sealed(objs, see_through=()):
+    import mathutils
+    scene = bpy.context.scene
+    bpy.context.view_layer.update()
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    dirs = _seal_dirs()
+    for obj in objs:
+        start = obj.location.copy()
+        if not _sealed(scene, depsgraph, start, dirs, see_through):
+            continue
+        rise = _SEAL_STEP
+        while rise <= _SEAL_MAX + 1e-9:
+            p = start + mathutils.Vector((0.0, 0.0, rise))
+            if not _sealed(scene, depsgraph, p, dirs, see_through):
+                obj.location = p
+                print("[Blendit] light %s was sealed inside the model; moved up %.2f m"
+                      % (obj.name, rise))
+                break
+            rise += _SEAL_STEP
+        else:
+            print("[Blendit] light %s is sealed inside the model and could not be freed"
+                  % obj.name)
 
 
 def _build_one(coll, L, i, scale):

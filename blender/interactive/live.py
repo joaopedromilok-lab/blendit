@@ -3230,10 +3230,13 @@ def _init_sun():
                 pass
         if lat is None or lon is None:
             st.sun_use_datetime = False              # no location -> manual sun
-            if sun.get("azimuth_degrees") is not None:
-                st.sun_azimuth = float(sun["azimuth_degrees"]) % 360.0
-            if sun.get("altitude_degrees") is not None:
-                st.sun_altitude = max(0.0, min(90.0, float(sun["altitude_degrees"])))
+            # Seed it with the sun setup_world just built - from angles OR a
+            # direction vector (SketchUp sends only the vector; the panel
+            # defaults used to move the sun), in model axes like the panel.
+            from blender.pipeline.world import scene_sun_angles
+            alt, az = scene_sun_angles(_SPEC)
+            st.sun_azimuth = az % 360.0
+            st.sun_altitude = max(0.0, min(90.0, alt))
     finally:
         _SYNCING = False
     _apply_user_sun(st)

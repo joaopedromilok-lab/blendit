@@ -53,6 +53,17 @@ def scene_azimuth(compass_azimuth_deg, offset_deg):
 def setup_world(spec, scale):
     sun = spec.get("sun", {})
     world_spec = spec.get("world", {})
+    alt_deg, az_deg = scene_sun_angles(spec, verbose=True)
+    _build_sky(world_spec, alt_deg, az_deg, base_dir=spec.get("_override_dir"))
+    _build_sun_lamp(sun, alt_deg, az_deg)
+
+
+def scene_sun_angles(spec, verbose=False):
+    """-> (altitude, azimuth in MODEL axes), degrees: the sun setup_world puts
+    in the scene, from whichever form the spec carries it in (angles, location
+    + time, or a direction vector). Live View seeds its Sun panel from this so
+    it never lights the scene with a different sun than the headless render."""
+    sun = spec.get("sun", {})
     alt_deg, compass_az = _sun_angles(sun)
 
     # The sun arrives as a real-world compass bearing; the scene is built on
@@ -61,7 +72,7 @@ def setup_world(spec, scale):
     # every individual number involved is correct.
     offset = north_offset(spec)
     az_deg = scene_azimuth(compass_az, offset)
-    if abs(offset) > 0.05:
+    if verbose and abs(offset) > 0.05:
         print("[Blendit] true north is %+.2f deg from project north; sun "
               "azimuth %.1f (compass) -> %.1f in model axes."
               % (offset, compass_az, az_deg))
@@ -72,12 +83,11 @@ def setup_world(spec, scale):
     # purpose: architects do golden-hour studies, and faking the altitude
     # would fake the shadow lengths.
     if alt_deg < _MIN_SUN_ALT:
-        print("[Blendit] sun altitude %.1f deg is below the horizon; lifting to "
-              "%.1f so the render isn't night (azimuth kept)." % (alt_deg, _MIN_SUN_ALT))
+        if verbose:
+            print("[Blendit] sun altitude %.1f deg is below the horizon; lifting to "
+                  "%.1f so the render isn't night (azimuth kept)." % (alt_deg, _MIN_SUN_ALT))
         alt_deg = _MIN_SUN_ALT
-
-    _build_sky(world_spec, alt_deg, az_deg, base_dir=spec.get("_override_dir"))
-    _build_sun_lamp(sun, alt_deg, az_deg)
+    return alt_deg, az_deg
 
 
 def _geographic_angles(sun):
